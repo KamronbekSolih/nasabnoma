@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Nasabnoma
 
-## Getting Started
+A family tree (*shajara*) platform built for Uzbek and CIS families — the conventions
+generic genealogy tools handle badly: patronymic naming, urugʻ/aymoq/tarmoq clan
+lineage, uncertain historical dates, and multi-script names.
 
-First, run the development server:
+## Stack
+
+- **Next.js 16** (App Router, Server Components, Server Actions) + TypeScript
+- **Tailwind CSS v4** — design tokens in `src/app/globals.css`
+- **Supabase** — Postgres, Auth, and Storage for photos
+
+## Data model
+
+Relationships follow the **GEDCOM family-unit model**, not parent→child edges:
+
+| Table | Holds |
+| --- | --- |
+| `people` | Individuals |
+| `families` | A couple (`husband_id`, `wife_id` — either may be null) |
+| `family_children` | Which children belong to which family |
+| `trees` / `tree_members` | Shared trees and per-tree roles |
+| `person_revisions` | Edit history (trigger-written) |
+
+A family owns a couple *and* their children together, so a child can't acquire two
+fathers, remarriages keep their children distinct, and siblings are read off the
+family rather than inferred. It also makes GEDCOM import/export a direct mapping.
+
+## Roles and privacy
+
+Roles are per-tree: `owner` → `admin` → `member` → `viewer`.
+
+Living people's private fields (birth date, address, contacts, photo, biography) are
+masked for non-admins by the `people_view` database view — enforced in Postgres, not
+in the UI, so a modified client still can't read them. Deceased people are fully
+visible; that's the point of a shajara. Individuals can claim their own record and
+opt it public.
+
+## Local setup
 
 ```bash
+npm install
+cp .env.local.example .env.local   # fill in your Supabase URL + anon key
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Database migrations
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`supabase/` holds the schema. Apply in order via the Supabase SQL Editor:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. `schema.sql`, `rls.sql`
+2. `migrations/002` … `migrations/011`
 
-## Learn More
+Each migration ends by recording itself in `schema_migrations`, so
+`select * from schema_migrations order by version;` always shows what has been
+applied. Migrations are written to be safe to re-run.
 
-To learn more about Next.js, take a look at the following resources:
+## Project layout
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/app/          routes + server actions
+src/components/   UI, grouped by feature
+src/lib/tree/     FamilyGraph — every relationship question is answered here
+src/lib/reference/ Uzbekistan regions, urugʻ names, nationalities
+supabase/         schema + migrations
+```

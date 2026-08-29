@@ -1,26 +1,160 @@
 @import "tailwindcss";
 
+/**
+ * Nasabnoma design tokens.
+ *
+ * Drawn from Timurid ceramic mosaic: aged parchment ground, cobalt and turquoise
+ * glaze, terracotta and manuscript gold. A shajara is a keepsake — closer to an
+ * illuminated family book than to a dashboard — so the surface carries texture and
+ * ornament rather than flat neutral panels.
+ *
+ * Ornament is structural (frames, rules, medallions), never decoration sprayed on
+ * top: it marks hierarchy, so it earns the pixels it costs.
+ */
+@theme {
+  /* Parchment ground — warm, slightly uneven */
+  --color-paper: #f2e9d8;
+  --color-paper-deep: #e7dac2;
+  --color-paper-sunken: #ded0b6;
+  --color-surface: #fdf9f0;
+  --color-surface-raised: #fffdf7;
+
+  /* Lines take their colour from aged paper edges, not grey */
+  --color-line: #ddcdb0;
+  --color-line-strong: #c4ad86;
+
+  /* Ink — warm manuscript black */
+  --color-ink: #2a2419;
+  --color-ink-muted: #6a5c46;
+  --color-ink-faint: #97876c;
+
+  /* Glaze palette, straight off the tilework */
+  --color-cobalt: #1c4a8f;
+  --color-cobalt-soft: #dde5f2;
+  --color-turquoise: #17837c;
+  --color-turquoise-soft: #d9ebe8;
+  --color-terracotta: #b04a30;
+  --color-terracotta-soft: #f4e0d9;
+
+  /* Primary reads as glazed turquoise; gold is the illuminator's accent */
+  --color-brand: #12706a;
+  --color-brand-hover: #0d5852;
+  --color-brand-soft: #d9ebe8;
+  --color-brand-line: #8dc4bd;
+  --color-gold: #a8792a;
+  --color-gold-soft: #f5e8cd;
+  --color-gold-line: #d6b876;
+
+  /* Lineage colours pulled from the mosaic rather than invented */
+  --color-male: #1c4a8f;
+  --color-male-soft: #dde5f2;
+  --color-female: #b04a30;
+  --color-female-soft: #f4e0d9;
+
+  /* States */
+  --color-danger: #8f3320;
+  --color-danger-soft: #f6e2dc;
+  --color-notice: #7d5a12;
+  --color-notice-soft: #f8ebcf;
+
+  /* Type — both faces carry Cyrillic, which the language switcher depends on */
+  --font-display: var(--font-marcellus), Georgia, "Times New Roman", serif;
+  --font-body: var(--font-lora), Georgia, serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-card: 0.75rem;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/**
+ * Parchment: fibrous grain from fractal noise, plus a broad warm vignette so the
+ * sheet reads as an aged page rather than a flat fill. Both are backgrounds on
+ * <body>, so they cost no DOM and never intercept clicks.
+ */
+body {
+  background-color: var(--color-paper);
+  background-image:
+    radial-gradient(ellipse 120% 80% at 50% 0%, rgba(255, 252, 242, 0.85), transparent 60%),
+    radial-gradient(ellipse 100% 100% at 50% 50%, transparent 55%, rgba(120, 92, 48, 0.13) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23g)' opacity='0.055'/%3E%3C/svg%3E");
+  background-attachment: fixed, fixed, fixed;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  /* Uzbek uses ʻ and ʼ constantly; kerning matters more than usual. */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Older relatives are a core audience — never sub-16px body text on mobile. */
+@media (max-width: 640px) {
+  body {
+    font-size: 1rem;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/**
+ * Girih lattice: interlocking eight-point stars, the motif that covers Samarkand
+ * and Bukhara facades. Tiled as a data URI so it is one cached asset, and kept at
+ * low opacity so it reads as woven texture behind content, never as noise.
+ */
+.girih-field {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%23a8792a' stroke-width='0.9' opacity='0.5'%3E%3Cpath d='M40 8 L46 22 L60 16 L54 30 L68 36 L54 42 L60 56 L46 50 L40 64 L34 50 L20 56 L26 42 L12 36 L26 30 L20 16 L34 22 Z'/%3E%3Cpath d='M0 0 L12 6 L6 12 Z M80 0 L68 6 L74 12 Z M0 80 L12 74 L6 68 Z M80 80 L68 74 L74 68 Z'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 80px 80px;
+}
+
+/**
+ * Illuminated rule: a chain of small mosaic diamonds with a medallion at centre,
+ * used to close a page header the way a manuscript band closes a section.
+ */
+.ornament-rule {
+  height: 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='14' viewBox='0 0 48 14'%3E%3Cg fill='none' stroke='%23c4ad86' stroke-width='1'%3E%3Cpath d='M0 7 L6 1 L12 7 L6 13 Z M12 7 L18 1 L24 7 L18 13 Z M24 7 L30 1 L36 7 L30 13 Z M36 7 L42 1 L48 7 L42 13 Z'/%3E%3C/g%3E%3Cg fill='%23a8792a' opacity='0.55'%3E%3Ccircle cx='6' cy='7' r='1.4'/%3E%3Ccircle cx='18' cy='7' r='1.4'/%3E%3Ccircle cx='30' cy='7' r='1.4'/%3E%3Ccircle cx='42' cy='7' r='1.4'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: center;
+}
+
+/**
+ * Illuminated card: a hairline gold inner rule inset from the border, the way a
+ * manuscript page is ruled inside its margin. Pure box-shadow, so no extra markup.
+ */
+.illuminated {
+  box-shadow:
+    inset 0 0 0 1px rgba(168, 121, 42, 0.16),
+    0 1px 2px rgba(42, 36, 25, 0.05),
+    0 8px 24px -12px rgba(42, 36, 25, 0.18);
+}
+
+/* Corner tesserae — four small glazed squares marking a panel's corners. */
+.tessera-corners {
+  position: relative;
+}
+.tessera-corners::before,
+.tessera-corners::after {
+  content: "";
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  background: var(--color-gold);
+  opacity: 0.4;
+  transform: rotate(45deg);
+}
+.tessera-corners::before {
+  top: 8px;
+  left: 8px;
+}
+.tessera-corners::after {
+  top: 8px;
+  right: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
