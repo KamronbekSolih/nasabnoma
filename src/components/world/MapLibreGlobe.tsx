@@ -22,8 +22,15 @@ const MAX_NAMES_PER_MARKER = 3;
 
 const GOLD = "#b0812f"; // --color-brand
 const GOLD_BRIGHT = "#d9a94f"; // --color-brand-line
-const LAND = "#fdfcf7"; // --color-surface
-const OCEAN = "#dcd8c7"; // --color-paper-sunken
+// Land was --color-surface (#fdfcf7) — the exact same value as the card this
+// globe sits inside (WorldView's bg-surface wrapper). Centered on continental
+// Central Asia, land dominates the visible sphere, so it was vanishing into its
+// own frame and leaving only a sliver of ocean at the edges. Both tones below
+// are picked to read clearly against bg-surface *and* against each other —
+// ocean shifted to an actual cool blue-grey rather than another shade of cream,
+// so the two aren't just relying on a narrow lightness gap to read apart.
+const LAND = "#e9e6d7"; // --color-paper-deep
+const OCEAN = "#b7c0d1"; // --color-line-strong
 const INK_MUTED = "#4d5a78"; // --color-ink-muted
 
 /** Free, keyless vector tiles — no account, no card, no request limits.
