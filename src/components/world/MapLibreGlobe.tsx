@@ -16,7 +16,7 @@ export interface CountryCount {
 }
 
 /** Longest a marker's name list gets before the rest collapse into a "+N" tail —
- * otherwise a country with a dozen relatives would sprawl across its neighbours. */
+ * otherwise a city with a dozen relatives would sprawl across its neighbours. */
 const MAX_NAMES_PER_MARKER = 3;
 
 // These style the family-tree overlay we draw on top (pins, name labels) — our
@@ -39,24 +39,48 @@ const STYLE_URL = "https://tiles.openfreemap.org/styles/bright";
 // normal-looking map now; not custom-themed, but reliably visible.
 
 /**
- * Hides every text/icon label the basemap draws — country names, sea and
- * ocean names, city/town/POI labels, road shields — leaving only our own gold
- * pins and name labels. Started as just the three country-name layers, then
- * grew to "all of it" once it was clear the basemap's own labels were always
- * going to compete with ours rather than add anything: a city label sitting
- * under one of our pins doesn't clarify who's there, it just clutters. Matched
- * by type rather than a hardcoded id list, since that list only ever grew.
+ * City labels are the one basemap text layer kept — they give a pin real
+ * geographic context now that people are plotted at their actual city rather
+ * than always their country's capital. Everything else the style draws text
+ * for (country names, sea/ocean names, towns, villages, POIs, road shields)
+ * is hidden: it only ever competed with our own pins rather than adding
+ * anything. Matched by type rather than a hardcoded id list for the "hide"
+ * side, since that list only ever grew; the "keep" list is deliberately a
+ * short, explicit exception to it.
  */
+const KEEP_LABEL_LAYERS = new Set(["label_city", "label_city_capital"]);
+
 function hideBasemapLabels(map: maplibregl.Map) {
   const layers = map.getStyle()?.layers ?? [];
   for (const layer of layers) {
     if (layer.type !== "symbol") continue;
+    if (KEEP_LABEL_LAYERS.has(layer.id)) continue;
     try {
       map.setLayoutProperty(layer.id, "visibility", "none");
     } catch {
       // Skip rather than let one unexpected layer abort the rest.
     }
   }
+}
+
+/** One pin's worth of people, all resolved to the same point. */
+interface LocationGroup {
+  lat: number;
+  lng: number;
+  /** Whichever country the point belongs to, for isHome/selection matching —
+   * every person contributing to a group shares a city, so in practice they
+   * share a country too. */
+  country: string;
+  /** Empty for a "someone lives here, but not visible to you" pin — the
+   * count still shown in the sidebar, just no name attached on the map. */
+  names: string[];
+}
+
+function formatNames(names: string[]): string | undefined {
+  if (names.length === 0) return undefined;
+  const shown = names.slice(0, MAX_NAMES_PER_MARKER).join(", ");
+  const rest = names.length - MAX_NAMES_PER_MARKER;
+  return rest > 0 ? `${shown} +${rest}` : shown;
 }
 
 function buildMarkerElement(opts: { isHome: boolean; isSelected: boolean; names?: string }): HTMLDivElement {
@@ -88,10 +112,9 @@ function buildMarkerElement(opts: { isHome: boolean; isSelected: boolean; names?
  * those handlers are created once (inside the mount effect) and would otherwise
  * close over stale props from whatever render happened to be current at mount. */
 interface LiveProps {
-  distribution: CountryCount[];
   selectedCountry: string | null;
   onSelectCountry: (country: string | null) => void;
-  namesByCountry: Map<string, string[]>;
+  locationGroups: LocationGroup[];
 }
 
 export function MapLibreGlobe({
@@ -100,9 +123,12 @@ export function MapLibreGlobe({
   onSelectCountry,
   selectedCountry,
 }: {
+  /** Per-country totals, including people the viewer can't see by name — used
+   * only to place an unnamed pin for a country that has family in it but no
+   * one visible to name there. */
   distribution: CountryCount[];
   /** Only people whose current location the viewer is allowed to see — their
-   * names are set beside their country's pin, not just its count. */
+   * names are set beside their own city's pin, not just their country's. */
   people: Person[];
   onSelectCountry: (country: string | null) => void;
   selectedCountry: string | null;
@@ -113,26 +139,57 @@ export function MapLibreGlobe({
   const styleReadyRef = useRef(false);
   const imperativeRef = useRef<{ drawMarkers: () => void } | null>(null);
 
-  const namesByCountry = useMemo(() => {
-    const map = new Map<string, string[]>();
+  const locationGroups = useMemo(() => {
+    const groups = new Map<string, LocationGroup>();
+    const keyFor = (lat: number, lng: number) => `${lat.toFixed(3)},${lng.toFixed(3)}`;
+
     for (const p of people) {
       if (!p.current_country) continue;
-      const list = map.get(p.current_country);
-      // Ism + familiya only here — the full three-part name (with patronymic)
-      // is what personName() gives everywhere else, but next to a map pin it's
-      // one name too many.
-      if (list) list.push(personShortName(p));
-      else map.set(p.current_country, [personShortName(p)]);
-    }
-    return map;
-  }, [people]);
+      // A geocoded city point if one was resolved when this person was saved,
+      // else the country's capital — the only precision available before
+      // per-person geocoding existed, and still the fallback when a district
+      // wasn't given or couldn't be resolved.
+      const point =
+        p.current_lat != null && p.current_lng != null
+          ? { lat: p.current_lat, lng: p.current_lng }
+          : coordsForCountry(p.current_country);
+      if (!point) continue;
 
-  const live = useRef<LiveProps>({ distribution, selectedCountry, onSelectCountry, namesByCountry });
+      const key = keyFor(point.lat, point.lng);
+      let group = groups.get(key);
+      if (!group) {
+        group = { lat: point.lat, lng: point.lng, country: p.current_country, names: [] };
+        groups.set(key, group);
+      }
+      // Ism + familiya only here — the full three-part name (with patronymic)
+      // is what personName() gives everywhere else, but next to a map pin
+      // it's one name too many.
+      group.names.push(personShortName(p));
+    }
+
+    // A country with family in it but nobody the viewer can see by name still
+    // gets a pin — unnamed, at the country's capital — so its presence isn't
+    // silently dropped just because no one in it is nameable here.
+    const countriesAlreadyShown = new Set(people.map((p) => p.current_country).filter((c): c is string => !!c));
+    for (const row of distribution) {
+      if (countriesAlreadyShown.has(row.country)) continue;
+      const point = coordsForCountry(row.country);
+      if (!point) continue;
+      const key = keyFor(point.lat, point.lng);
+      if (!groups.has(key)) {
+        groups.set(key, { lat: point.lat, lng: point.lng, country: row.country, names: [] });
+      }
+    }
+
+    return Array.from(groups.values());
+  }, [people, distribution]);
+
+  const live = useRef<LiveProps>({ selectedCountry, onSelectCountry, locationGroups });
   // Refs can't be written during render (React flags it) — this keeps `live`
   // fresh after every render instead, which is still well before any event
   // handler below could read it.
   useEffect(() => {
-    live.current = { distribution, selectedCountry, onSelectCountry, namesByCountry };
+    live.current = { selectedCountry, onSelectCountry, locationGroups };
   });
 
   // Mount: create the map once. Everything data-dependent is drawn imperatively
@@ -151,33 +208,23 @@ export function MapLibreGlobe({
     mapRef.current = map;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
 
-    function namesForCountry(country: string): string | undefined {
-      const names = live.current.namesByCountry.get(country);
-      if (!names || names.length === 0) return undefined;
-      const shown = names.slice(0, MAX_NAMES_PER_MARKER).join(", ");
-      const rest = names.length - MAX_NAMES_PER_MARKER;
-      return rest > 0 ? `${shown} +${rest}` : shown;
-    }
-
     function drawMarkers() {
       for (const marker of markersRef.current) marker.remove();
       markersRef.current = [];
 
-      for (const row of live.current.distribution) {
-        const coords = coordsForCountry(row.country);
-        if (!coords) continue;
+      for (const group of live.current.locationGroups) {
         const el = buildMarkerElement({
-          isHome: isHomeCountry(row.country),
-          isSelected: row.country === live.current.selectedCountry,
-          names: namesForCountry(row.country),
+          isHome: isHomeCountry(group.country),
+          isSelected: group.country === live.current.selectedCountry,
+          names: formatNames(group.names),
         });
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           const current = live.current.selectedCountry;
-          live.current.onSelectCountry(current === row.country ? null : row.country);
+          live.current.onSelectCountry(current === group.country ? null : group.country);
         });
         const marker = new maplibregl.Marker({ element: el, anchor: "bottom" })
-          .setLngLat([coords.lng, coords.lat])
+          .setLngLat([group.lng, group.lat])
           .addTo(map);
         markersRef.current.push(marker);
       }
@@ -247,10 +294,13 @@ export function MapLibreGlobe({
   useEffect(() => {
     if (!styleReadyRef.current) return;
     imperativeRef.current?.drawMarkers();
-  }, [distribution, namesByCountry]);
+  }, [locationGroups]);
 
   // Fly to the picked country; redraw markers so the selected one's dot/label
-  // restyles (their DOM elements don't otherwise know about selection).
+  // restyles (their DOM elements don't otherwise know about selection). Flies
+  // to the country's capital regardless of which of its cities are pinned —
+  // picking one specific city to zoom to over another would be arbitrary when
+  // a country has more than one.
   useEffect(() => {
     if (!styleReadyRef.current) return;
     imperativeRef.current?.drawMarkers();

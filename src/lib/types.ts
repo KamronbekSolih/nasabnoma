@@ -57,6 +57,8 @@ export interface Person {
   current_region: string | null;
   current_district: string | null;
   current_address: string | null;
+  current_lat: number | null;
+  current_lng: number | null;
   millat: string | null;
   urug: string | null;
   aymoq: string | null;

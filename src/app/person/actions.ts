@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { canEditRole, getCurrentTree, isAdminRole } from "@/lib/tree/current";
 import { dmyToISO } from "@/lib/dates";
+import { geocodeCurrentLocation } from "@/lib/geocode";
 import type { ChildRelation, RelationKind, TreeMember } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -59,6 +60,22 @@ export async function savePerson(formData: FormData): Promise<{ id: string }> {
     throw new Error("Ism va jinsi majburiy.");
   }
 
+  const current_country = (formData.get("current_country") as string)?.trim() || null;
+  const current_region = (formData.get("current_region") as string)?.trim() || null;
+  const current_district = (formData.get("current_district") as string)?.trim() || null;
+
+  // City-level, not street-level: geocoding the district/region/country gives
+  // the World map an actual city to place a pin at (e.g. Rotterdam) instead of
+  // always falling back to the country's capital (Amsterdam) — the only
+  // precision available before this. Only worth the request when there's a
+  // district to resolve; country-only already has the capital fallback, and a
+  // failed/unresolvable lookup just leaves the point null, same as before.
+  const currentPoint = await geocodeCurrentLocation({
+    district: current_district,
+    region: current_region,
+    country: current_country,
+  });
+
   const record = {
     tree_id: treeId,
     first_name,
@@ -74,10 +91,12 @@ export async function savePerson(formData: FormData): Promise<{ id: string }> {
     birth_region: (formData.get("birth_region") as string)?.trim() || null,
     birth_district: (formData.get("birth_district") as string)?.trim() || null,
     birth_mahalla: (formData.get("birth_mahalla") as string)?.trim() || null,
-    current_country: (formData.get("current_country") as string)?.trim() || null,
-    current_region: (formData.get("current_region") as string)?.trim() || null,
-    current_district: (formData.get("current_district") as string)?.trim() || null,
+    current_country,
+    current_region,
+    current_district,
     current_address: (formData.get("current_address") as string)?.trim() || null,
+    current_lat: currentPoint?.lat ?? null,
+    current_lng: currentPoint?.lng ?? null,
     millat: (formData.get("millat") as string)?.trim() || null,
     urug: (formData.get("urug") as string)?.trim() || null,
     aymoq: (formData.get("aymoq") as string)?.trim() || null,
