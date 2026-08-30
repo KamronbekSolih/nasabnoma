@@ -200,22 +200,16 @@ export function MapLibreGlobe({
     imperativeRef.current = { drawMarkers, highlightSelection };
 
     map.on("style.load", () => {
-      // Must happen after the style has loaded — MapLibre throws ("Style is not
-      // done loading") if setProjection is called any earlier, e.g. right after
-      // construction. Globe at world view, easing flat as the country flyTo
-      // (zoom 3.2) is approached — MapLibre calls the globe projection
-      // "vertical-perspective", not "globe" (that's Mapbox's name for it).
-      map.setProjection({
-        type: [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          3,
-          "vertical-perspective",
-          6,
-          "mercator",
-        ] as unknown as maplibregl.ProjectionSpecification["type"],
-      });
+      // No setProjection call — plain mercator. A prior version called
+      // map.setProjection() with an interpolate-expression type (to render as a
+      // globe at world view, easing flat on country zoom-in). The style itself
+      // loaded fine either way, but with that call in place tiles were never
+      // actually fetched: confirmed live by spinning up a second, otherwise
+      // identical map on the same page with no projection call, which rendered
+      // correctly right next to the broken one. Whatever the exact cause —
+      // MapLibre's tile-covering calculation not handling an expression-valued
+      // projection type — dropping it is what makes tiles load at all, which
+      // matters more right now than the globe effect.
       map.addSource("arcs", {
         type: "geojson",
         data: greatCircleFeatureCollection(live.current.distribution),
