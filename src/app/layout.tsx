@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Lora, Cormorant_Garamond } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { createClient } from "@/lib/supabase/server";
@@ -56,6 +57,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col bg-paper">
         <AppHeader userEmail={user?.email ?? null} role={tree?.role ?? null} />
         {children}
+        <Analytics />
       </body>
     </html>
   );
