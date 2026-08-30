@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Lora, Marcellus } from "next/font/google";
+import { Inter, Lora, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { createClient } from "@/lib/supabase/server";
@@ -19,18 +19,18 @@ const lora = Lora({
   display: "swap",
 });
 
-// Display face for the wordmark and page titles: Roman-inscriptional, with the
-// flared serifs and wide caps that sit well against geometric tilework. Latin-only,
-// so anything that must render in Cyrillic uses Lora instead.
-const marcellus = Marcellus({
-  variable: "--font-marcellus",
-  subsets: ["latin"],
-  weight: "400",
+// Display face for the wordmark and page titles — Cormorant Garamond at weight
+// 600, the exact heading pairing from the project's Classical design system.
+// Unlike Marcellus it carries Cyrillic too, which the language switcher needs.
+const cormorant = Cormorant_Garamond({
+  variable: "--font-cormorant",
+  subsets: ["latin", "latin-ext", "cyrillic"],
+  weight: ["500", "600", "700"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Nasabnoma",
+  title: "7avlod",
   description: "Oilaviy shajara — o'zbek va MDH oilalari uchun",
 };
 
@@ -51,7 +51,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="uz"
-      className={`${inter.variable} ${lora.variable} ${marcellus.variable} h-full antialiased`}
+      className={`${inter.variable} ${lora.variable} ${cormorant.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-paper">
         <AppHeader userEmail={user?.email ?? null} role={tree?.role ?? null} />

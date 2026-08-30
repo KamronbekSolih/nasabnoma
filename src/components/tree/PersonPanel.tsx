@@ -65,7 +65,12 @@ export function PersonPanel({
   };
 
   return (
-    <aside className="fixed inset-x-0 bottom-0 z-20 flex max-h-[70vh] flex-col gap-4 overflow-y-auto rounded-t-2xl border-t border-line-strong bg-surface p-5 shadow-[0_-8px_32px_-12px_rgba(42,36,25,0.3)] sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:max-h-none sm:w-80 sm:rounded-none sm:border-t-0 sm:border-l sm:shadow-[-8px_0_32px_-12px_rgba(42,36,25,0.2)]">
+    <aside
+      // top-16 keeps this clear of the sticky header (z-30) — inset-y-0 used to
+      // start the panel at the very top of the viewport, so its top edge rendered
+      // underneath the header instead of below it.
+      className="fixed inset-x-0 bottom-0 z-20 flex max-h-[70vh] flex-col gap-4 overflow-y-auto rounded-t-2xl border-t border-line-strong bg-surface p-5 shadow-[0_-8px_32px_-12px_rgba(42,36,25,0.3)] sm:inset-x-auto sm:top-16 sm:right-0 sm:bottom-0 sm:max-h-none sm:w-80 sm:rounded-none sm:border-t-0 sm:border-l sm:shadow-[-8px_0_32px_-12px_rgba(42,36,25,0.2)]"
+    >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           {person.photo_url && (

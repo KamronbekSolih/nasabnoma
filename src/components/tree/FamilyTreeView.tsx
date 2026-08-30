@@ -9,7 +9,6 @@ import { pickDefaultRootId } from "@/lib/tree/connectivity";
 import { FamilyGraph } from "@/lib/tree/relations";
 import { FamilyNode } from "./FamilyNode";
 import { PersonPanel } from "./PersonPanel";
-import { TreeCanvas } from "./TreeCanvas";
 import { personName } from "@/lib/people";
 import { canEditRole } from "@/lib/roles";
 import { buttonPrimary, inputClass } from "@/components/ui/primitives";
@@ -18,6 +17,14 @@ import type { Family, FamilyChild, Person, TreeRole } from "@/lib/types";
 
 const WIDTH = 180;
 const HEIGHT = 100;
+
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 1.5;
+const ZOOM_STEP = 1.15;
+
+function clampZoom(z: number): number {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+}
 
 /** Matches the apostrophe variants and case differences that make the same Uzbek
  * name look like two different strings. */
@@ -47,6 +54,10 @@ export function FamilyTreeView({
   const [rootId, setRootId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // The tree only ever grows as people are added, so a fixed-size canvas eventually
+  // stops fitting the screen — this scales the whole rendered tree rather than any
+  // one node, so relative layout (who's next to whom) never changes, only the size.
+  const [zoom, setZoom] = useState(1);
 
   const effectiveRootId = rootId && graph.personById.has(rootId) ? rootId : defaultRootId;
   const selectedPerson = selectedId ? graph.personById.get(selectedId) : undefined;
@@ -85,7 +96,7 @@ export function FamilyTreeView({
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="relative flex flex-1 flex-col overflow-hidden">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface/90 px-3 py-2.5 backdrop-blur sm:px-4">
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
@@ -134,30 +145,74 @@ export function FamilyTreeView({
         </select>
       </div>
 
-      <TreeCanvas contentKey={effectiveRootId}>
-        <ReactFamilyTree
-          nodes={nodes}
-          rootId={effectiveRootId}
-          width={WIDTH}
-          height={HEIGHT}
-          className="relative"
-          renderNode={(node: ExtNode) => {
-            const person = graph.personById.get(node.id);
-            if (!person) return null;
-            return (
-              <FamilyNode
-                key={node.id}
-                node={node}
-                person={person}
-                selected={node.id === selectedId}
-                matched={matches?.has(node.id)}
-                dimmed={!!matches && !matches.has(node.id)}
-                onSelect={setSelectedId}
-              />
-            );
-          }}
-        />
-      </TreeCanvas>
+      {/* flex-1 + overflow-hidden here (not on the scroll div itself) gives the zoom
+          toolbar a positioning box that's exactly the visible canvas area — already
+          excluding the toolbar row above and the unlinked-people bar below, and
+          never the reach of PersonPanel's z-20 side drawer, without it scrolling
+          away with the tree underneath it. */}
+      <div className="relative flex-1 overflow-hidden">
+        <div className="absolute inset-0 overflow-auto p-6">
+          {/* CSS transform scales the whole canvas without touching the layout math
+              inside ReactFamilyTree/FamilyNode (still WIDTH×HEIGHT per node) — the
+              wrapper's own box shrinks to fit its (pre-scale) content so the scrolling
+              ancestor sees the right, already-scaled scroll extents. */}
+          <div style={{ transform: `scale(${zoom})`, transformOrigin: "top left" }} className="inline-block">
+            <ReactFamilyTree
+              nodes={nodes}
+              rootId={effectiveRootId}
+              width={WIDTH}
+              height={HEIGHT}
+              className="family-tree-root relative"
+              renderNode={(node: ExtNode) => {
+                const person = graph.personById.get(node.id);
+                if (!person) return null;
+                return (
+                  <FamilyNode
+                    key={node.id}
+                    node={node}
+                    person={person}
+                    selected={node.id === selectedId}
+                    matched={matches?.has(node.id)}
+                    dimmed={!!matches && !matches.has(node.id)}
+                    onSelect={setSelectedId}
+                  />
+                );
+              }}
+            />
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute right-4 bottom-4 z-10 sm:right-6">
+          <div className="pointer-events-auto flex items-center gap-0.5 rounded-lg border border-line-strong bg-surface/95 p-1 shadow-lg backdrop-blur">
+            <button
+              type="button"
+              onClick={() => setZoom((z) => clampZoom(z / ZOOM_STEP))}
+              disabled={zoom <= ZOOM_MIN}
+              aria-label="Kichraytirish"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-lg text-ink hover:bg-paper-sunken disabled:opacity-30"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom(1)}
+              className="min-w-11 rounded-md px-1 text-center text-xs text-ink-muted hover:bg-paper-sunken"
+              title="Asl oʻlchamga qaytarish"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => clampZoom(z * ZOOM_STEP))}
+              disabled={zoom >= ZOOM_MAX}
+              aria-label="Kattalashtirish"
+              className="flex h-8 w-8 items-center justify-center rounded-md text-lg text-ink hover:bg-paper-sunken disabled:opacity-30"
+            >
+              +
+            </button>
+          </div>
+        </div>
+      </div>
 
       {unlinkedPeople.length > 0 && (
         <div className="border-t border-gold-line bg-gold-soft px-4 py-2.5">

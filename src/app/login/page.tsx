@@ -1,10 +1,11 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { buttonPrimary, inputClass, Field } from "@/components/ui/primitives";
-import { MosaicScatter, OrnamentalDivider } from "@/components/ui/Ornament";
+import { OrnamentalDivider } from "@/components/ui/Ornament";
 
 type Mode = "signin" | "signup";
 
@@ -48,12 +49,21 @@ function LoginForm() {
   return (
     <div className="w-full max-w-sm">
       <div className="mb-7 text-center">
-        {/* Mosaic fragments to the left of the wordmark, as in a broken-tile panel.
-            Hidden on small screens, where it would crowd the form. */}
-        <div className="mb-4 hidden justify-center sm:flex">
-          <MosaicScatter className="h-20 w-28 opacity-90" />
-        </div>
-        <h1 className="font-display text-4xl tracking-wide text-brand">Nasabnoma</h1>
+        {/* The emblem-only mark (no baked-in wordmark) — set the actual "7avlod"
+            text below it, two-toned the same way as the header, rather than
+            re-rasterizing type into the image. */}
+        <Image
+          src="/brand/logo-mark.png"
+          alt=""
+          width={760}
+          height={709}
+          priority
+          className="mx-auto h-32 w-auto sm:h-36"
+        />
+        <p className="font-display text-3xl tracking-wide">
+          <span className="text-brand">7</span>
+          <span className="text-ink">avlod</span>
+        </p>
         <OrnamentalDivider className="my-4" />
         <p className="font-body text-sm text-ink-muted italic">
           Oila shajarangizni saqlang, tuzing va avlodlarga qoldiring
@@ -118,11 +128,6 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <main className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-10">
-      {/* Girih lattice washed out behind the card — texture, not pattern-as-noise. */}
-      <div
-        className="girih-field pointer-events-none absolute inset-0 opacity-[0.13]"
-        aria-hidden="true"
-      />
       {/* useSearchParams needs a Suspense boundary to avoid opting the whole route
           out of static rendering. */}
       <div className="relative">

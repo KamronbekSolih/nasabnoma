@@ -1,19 +1,23 @@
 import Link from "next/link";
 
 /** Shared styling primitives. Keeping these in one place is what makes a palette
- * change a one-file edit instead of a search-and-replace across every component. */
+ * change a one-file edit instead of a search-and-replace across every component.
+ *
+ * Button/card treatment follows the project's Classical design system: hairline
+ * borders, transparent fills, tight radii — outlined rather than solid-filled,
+ * so gold reads as ink on parchment rather than a block of colour. */
 
 export const inputClass =
-  "w-full rounded-lg border border-line-strong bg-surface px-3 py-2.5 text-base text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand-soft disabled:bg-paper-sunken disabled:text-ink-faint sm:py-2 sm:text-sm";
+  "w-full rounded-card border border-line-strong bg-surface px-3 py-2.5 text-base text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-brand focus:ring-2 focus:ring-brand-soft disabled:bg-paper-sunken disabled:text-ink-faint sm:py-2 sm:text-sm";
 
 export const buttonPrimary =
-  "inline-flex min-h-11 items-center justify-center rounded-lg bg-brand px-5 text-sm font-semibold text-white transition-colors hover:bg-brand-hover disabled:opacity-50 sm:min-h-10";
+  "inline-flex min-h-11 items-center justify-center rounded-card border border-brand bg-transparent px-5 font-display text-sm font-semibold text-brand transition-colors hover:bg-brand-soft disabled:opacity-50 sm:min-h-10";
 
 export const buttonSecondary =
-  "inline-flex min-h-11 items-center justify-center rounded-lg border border-line-strong bg-surface px-5 text-sm font-semibold text-ink transition-colors hover:bg-paper-sunken disabled:opacity-50 sm:min-h-10";
+  "inline-flex min-h-11 items-center justify-center rounded-card border border-line-strong bg-transparent px-5 font-display text-sm font-semibold text-ink transition-colors hover:bg-paper-sunken disabled:opacity-50 sm:min-h-10";
 
 export const buttonQuiet =
-  "inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-sm text-brand transition-colors hover:bg-brand-soft";
+  "inline-flex min-h-9 items-center gap-1 rounded-card px-2 text-sm text-brand transition-colors hover:bg-brand-soft";
 
 export function Card({
   title,
@@ -28,7 +32,7 @@ export function Card({
 }) {
   return (
     <section
-      className={`rounded-card border border-line bg-surface p-4 shadow-[0_1px_2px_rgba(43,37,33,0.04)] sm:p-5 ${className}`}
+      className={`rounded-card border border-line bg-transparent p-4 shadow-[0_1px_2px_rgba(27,26,24,0.08)] sm:p-5 ${className}`}
     >
       {title && (
         <h2 className="font-display text-sm font-semibold tracking-wide text-ink-muted uppercase">
@@ -80,7 +84,7 @@ export function Notice({
     danger: "border-danger/30 bg-danger-soft text-danger",
   };
   return (
-    <div className={`rounded-lg border px-4 py-3 text-sm ${tones[tone]}`}>{children}</div>
+    <div className={`rounded-card border px-4 py-3 text-sm ${tones[tone]}`}>{children}</div>
   );
 }
 

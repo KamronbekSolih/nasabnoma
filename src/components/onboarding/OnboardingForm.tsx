@@ -34,7 +34,7 @@ export function OnboardingForm() {
 
   return (
     <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-8 shadow-sm">
-      <h1 className="text-xl font-semibold text-ink">Nasabnoma&apos;ga xush kelibsiz</h1>
+      <h1 className="text-xl font-semibold text-ink">7avlod&apos;ga xush kelibsiz</h1>
       <p className="mt-1 text-sm text-ink-muted">
         Yangi shajara boshlang yoki oila a&apos;zosi sifatida qo&apos;shiling
       </p>

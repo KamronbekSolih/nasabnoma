@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { savePerson, deletePerson } from "@/app/person/actions";
+import { savePerson, deletePerson, attachRelative } from "@/app/person/actions";
 import { createClient } from "@/lib/supabase/client";
 import { uploadAvatar, deleteAvatarByUrl } from "@/lib/supabase/storage";
 import { isoToDMY } from "@/lib/dates";
@@ -164,6 +164,13 @@ export function PersonForm({
 
       const result = await savePerson(formData);
       setSavedId(result.id);
+
+      // The person being created "as X's father/mother/spouse/child" (via the tree
+      // panel's "not in the list, create new" fallback) only exists as a standalone
+      // record until this runs — it's what actually links them back to X.
+      if (relationContext) {
+        await attachRelative(relationContext.ofId, relationContext.relation, result.id);
+      }
 
       // Land on the saved person so the change is immediately visible, rather than
       // dropping back to the tree where it may be off-screen.
@@ -401,9 +408,11 @@ export function PersonForm({
             Maxfiylik
           </h2>
           <p className="text-xs text-ink-muted">
-            Tirik odamlarning tug&apos;ilgan sanasi, manzili va aloqa ma&apos;lumotlari
-            oddiy a&apos;zolardan yashiriladi. Vafot etganlarning ma&apos;lumotlari
-            hamma uchun ochiq — shajaraning mohiyati shu.
+            Tirik odamlarning tug&apos;ilgan sanasi va aloqa ma&apos;lumotlari oddiy
+            a&apos;zolardan yashiriladi. <strong>Hozirgi manzil bundan mustasno</strong> —
+            u har doim ochiq, chunki &quot;Dunyo bo&apos;ylab&quot; xaritasi shunga
+            asoslanadi. Vafot etganlarning barcha ma&apos;lumotlari hamma uchun ochiq —
+            shajaraning mohiyati shu.
           </p>
           <Field label="Ko'rinishi" htmlFor="visibility">
             <select

@@ -37,6 +37,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# raw design source uploads (logo drafts, reference mockups) — the processed
+# assets actually used by the app live in public/brand/ and are tracked normally
+/media
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

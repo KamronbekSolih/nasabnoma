@@ -62,7 +62,6 @@ export function PersonProfile({
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6">
       {/* Identity band */}
       <div className="illuminated relative overflow-hidden rounded-card border border-line-strong bg-surface">
-        <div className="girih-field absolute inset-0 opacity-[0.11]" aria-hidden="true" />
         <div className="relative flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:gap-5 sm:p-6">
           {person.photo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -132,10 +131,15 @@ export function PersonProfile({
         </div>
       </Card>
 
-      {person.details_visible && (birthPlace || currentPlace) && (
+      {/* Current location is public regardless of details_visible — birthplace isn't:
+          where someone lives today is a different disclosure than where they were
+          born decades ago. */}
+      {((person.details_visible && birthPlace) || currentPlace) && (
         <Card title="Joylashuv">
           <dl className="grid gap-4 sm:grid-cols-2">
-            {birthPlace && <DetailRow label="Tugʻilgan joyi" value={birthPlace} />}
+            {person.details_visible && birthPlace && (
+              <DetailRow label="Tugʻilgan joyi" value={birthPlace} />
+            )}
             {currentPlace && <DetailRow label="Hozirgi manzili" value={currentPlace} />}
           </dl>
         </Card>

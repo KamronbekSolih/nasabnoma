@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignOutButton } from "./SignOutButton";
@@ -21,6 +22,7 @@ export function AppHeader({
 
   const links = [
     { href: "/tree", label: "Shajara" },
+    { href: "/world", label: "Dunyo boʻylab" },
     ...(canEditRole(role) ? [{ href: "/person/new", label: "Odam qoʻshish" }] : []),
     ...(isAdminRole(role) ? [{ href: "/duplicates", label: "Takrorlar" }] : []),
     { href: "/settings", label: "Sozlamalar" },
@@ -29,9 +31,12 @@ export function AppHeader({
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-        <Link href="/tree" className="flex items-baseline gap-2">
-          <span className="font-display text-lg font-semibold tracking-tight text-brand">
-            Nasabnoma
+        <Link href="/tree" className="flex items-center gap-2">
+          <Image src="/brand/icon.png" alt="" width={28} height={28} className="rounded-full" />
+          {/* Two-toned to match the mark itself: gold numeral, navy word. */}
+          <span className="font-display text-lg font-semibold tracking-tight">
+            <span className="text-brand">7</span>
+            <span className="text-ink">avlod</span>
           </span>
         </Link>
 

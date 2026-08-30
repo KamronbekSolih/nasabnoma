@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canEditRole, getCurrentTree, isAdminRole } from "@/lib/tree/current";
 import { dmyToISO } from "@/lib/dates";
 import type { ChildRelation, RelationKind, TreeMember } from "@/lib/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface SpouseInput {
   id: string;
@@ -106,8 +107,7 @@ export async function savePerson(formData: FormData): Promise<{ id: string }> {
   }
 
   // One transaction on the database side: parents, spouses and children either all
-  // apply or none do. Previously these were separate delete-then-insert round trips,
-  // so a failure part-way through destroyed relations it never restored.
+  // apply or none do.
   const { error: relError } = await supabase.rpc("save_person_relations", {
     p_person_id: personId,
     p_father_id: (formData.get("father_id") as string) || null,
@@ -136,11 +136,104 @@ export async function deletePerson(id: string) {
   revalidatePath("/tree");
 }
 
+interface RelationSnapshot {
+  fatherId: string | null;
+  motherId: string | null;
+  spouses: SpouseInput[];
+  children: ChildInput[];
+}
+
 /**
- * Links a person to an existing relative from the tree panel. Everything routes
- * through save_person_relations so the family model stays the single source of
- * truth — there is no second code path that writes relationships.
+ * Reads a person's complete current relationship set. attachRelative/detachRelative
+ * both need this: save_person_relations replaces a person's whole set atomically in
+ * one transaction — it has no "add/remove just one" mode — so the only safe way to
+ * change a single relation is to load everything, edit that one piece in memory, and
+ * write the whole snapshot back.
+ *
+ * This is deliberately the *only* place that reads relations for a write. An earlier
+ * version of attachRelative hand-rolled its own father/mother/spouse/child writes
+ * directly against `families`/`family_children`, duplicating (and quietly diverging
+ * from) the logic in save_person_relations — exactly the kind of two-code-paths-for-
+ * one-write bug that caused the duplicate-record issues earlier in this project.
  */
+async function loadRelationSnapshot(
+  supabase: SupabaseClient,
+  treeId: string,
+  personId: string,
+): Promise<RelationSnapshot> {
+  const [{ data: childLink }, { data: partnerFamilies }] = await Promise.all([
+    supabase
+      .from("family_children")
+      .select("family_id")
+      .eq("tree_id", treeId)
+      .eq("child_id", personId)
+      .maybeSingle(),
+    supabase
+      .from("families")
+      .select("id, husband_id, wife_id, relation_type")
+      .eq("tree_id", treeId)
+      .or(`husband_id.eq.${personId},wife_id.eq.${personId}`)
+      .order("marriage_order"),
+  ]);
+
+  let fatherId: string | null = null;
+  let motherId: string | null = null;
+  if (childLink) {
+    const { data: parentFamily } = await supabase
+      .from("families")
+      .select("husband_id, wife_id")
+      .eq("id", childLink.family_id)
+      .single();
+    fatherId = parentFamily?.husband_id ?? null;
+    motherId = parentFamily?.wife_id ?? null;
+  }
+
+  const families = partnerFamilies ?? [];
+  const spouses: SpouseInput[] = families
+    .map((f) => ({
+      id: f.husband_id === personId ? f.wife_id : f.husband_id,
+      status: f.relation_type as string,
+    }))
+    .filter((s): s is SpouseInput => !!s.id);
+
+  let children: ChildInput[] = [];
+  if (families.length > 0) {
+    const { data: childrenLinks } = await supabase
+      .from("family_children")
+      .select("family_id, child_id, father_relation, mother_relation")
+      .in(
+        "family_id",
+        families.map((f) => f.id),
+      );
+    children = (childrenLinks ?? []).map((c) => ({
+      id: c.child_id,
+      family_id: c.family_id,
+      father_relation: c.father_relation,
+      mother_relation: c.mother_relation,
+    }));
+  }
+
+  return { fatherId, motherId, spouses, children };
+}
+
+async function writeRelationSnapshot(
+  supabase: SupabaseClient,
+  personId: string,
+  snapshot: RelationSnapshot,
+) {
+  const { error } = await supabase.rpc("save_person_relations", {
+    p_person_id: personId,
+    p_father_id: snapshot.fatherId,
+    p_mother_id: snapshot.motherId,
+    p_spouses: snapshot.spouses,
+    p_children: snapshot.children,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Links a person to an existing relative from the tree panel — loads the anchor's
+ * current relations, adds the one requested, and writes the whole set back through
+ * the same atomic path the main form uses. */
 export async function attachRelative(
   anchorId: string,
   relation: RelationKind,
@@ -152,98 +245,44 @@ export async function attachRelative(
 
   const { data: anchor } = await supabase
     .from("people")
-    .select("id, gender")
+    .select("id")
     .eq("id", anchorId)
     .eq("tree_id", treeId)
     .single();
   if (!anchor) throw new Error("Odam topilmadi.");
 
-  if (relation === "father" || relation === "mother") {
-    const { data: existing } = await supabase
-      .from("family_children")
-      .select("family_id")
-      .eq("child_id", anchorId)
-      .maybeSingle();
+  const snapshot = await loadRelationSnapshot(supabase, treeId, anchorId);
 
-    let husbandId: string | null = relation === "father" ? otherPersonId : null;
-    let wifeId: string | null = relation === "mother" ? otherPersonId : null;
-
-    // Keep the parent already on record: adding a mother must not drop the father.
-    if (existing) {
-      const { data: family } = await supabase
-        .from("families")
-        .select("husband_id, wife_id")
-        .eq("id", existing.family_id)
-        .single();
-      if (family) {
-        husbandId = relation === "father" ? otherPersonId : family.husband_id;
-        wifeId = relation === "mother" ? otherPersonId : family.wife_id;
-      }
-    }
-
-    const { data: familyId, error } = await supabase.rpc("find_or_create_family", {
-      p_tree_id: treeId,
-      p_husband_id: husbandId,
-      p_wife_id: wifeId,
-      p_relation_type: "unknown",
-    });
-    if (error) throw new Error(error.message);
-
-    await supabase.from("family_children").delete().eq("child_id", anchorId);
-    const { error: linkError } = await supabase
-      .from("family_children")
-      .insert({ tree_id: treeId, family_id: familyId, child_id: anchorId });
-    if (linkError) throw new Error(linkError.message);
+  if (relation === "father") {
+    if (snapshot.fatherId) throw new Error("Ota allaqachon qoʻshilgan.");
+    snapshot.fatherId = otherPersonId;
+  } else if (relation === "mother") {
+    if (snapshot.motherId) throw new Error("Ona allaqachon qoʻshilgan.");
+    snapshot.motherId = otherPersonId;
   } else if (relation === "spouse") {
-    const { data: other } = await supabase
-      .from("people")
-      .select("gender")
-      .eq("id", otherPersonId)
-      .eq("tree_id", treeId)
-      .single();
-    const anchorIsHusband = anchor.gender === "male" || other?.gender === "female";
-    const { error } = await supabase.rpc("find_or_create_family", {
-      p_tree_id: treeId,
-      p_husband_id: anchorIsHusband ? anchorId : otherPersonId,
-      p_wife_id: anchorIsHusband ? otherPersonId : anchorId,
-      p_relation_type: "married",
-    });
-    if (error) throw new Error(error.message);
-  } else if (relation === "child") {
-    // Prefer the anchor's earliest family so the child lands with both parents;
-    // fall back to a single-parent family when no marriage is recorded.
-    const { data: families } = await supabase
-      .from("families")
-      .select("id")
-      .eq("tree_id", treeId)
-      .or(`husband_id.eq.${anchorId},wife_id.eq.${anchorId}`)
-      .order("marriage_order")
-      .limit(1);
-
-    let familyId = families?.[0]?.id;
-    if (!familyId) {
-      const { data: created, error } = await supabase.rpc("find_or_create_family", {
-        p_tree_id: treeId,
-        p_husband_id: anchor.gender === "male" ? anchorId : null,
-        p_wife_id: anchor.gender === "female" ? anchorId : null,
-        p_relation_type: "unknown",
-      });
-      if (error) throw new Error(error.message);
-      familyId = created;
+    if (!snapshot.spouses.some((s) => s.id === otherPersonId)) {
+      snapshot.spouses.push({ id: otherPersonId, status: "married" });
     }
-
-    // A child belongs to exactly one family, so moving them clears the old link.
-    await supabase.from("family_children").delete().eq("child_id", otherPersonId);
-    const { error: linkError } = await supabase
-      .from("family_children")
-      .insert({ tree_id: treeId, family_id: familyId, child_id: otherPersonId });
-    if (linkError) throw new Error(linkError.message);
+  } else if (relation === "child") {
+    if (!snapshot.children.some((c) => c.id === otherPersonId)) {
+      snapshot.children.push({
+        id: otherPersonId,
+        family_id: null,
+        father_relation: "birth",
+        mother_relation: "birth",
+      });
+    }
   }
 
+  await writeRelationSnapshot(supabase, anchorId, snapshot);
+
   revalidatePath("/tree");
+  revalidatePath(`/person/${anchorId}`);
+  revalidatePath(`/person/${otherPersonId}`);
 }
 
-/** Undoes an attachRelative link — for correcting a wrong pick. */
+/** Undoes an attachRelative link — for correcting a wrong pick. Same snapshot
+ * load-edit-write pattern, just removing instead of adding. */
 export async function detachRelative(
   anchorId: string,
   relation: RelationKind,
@@ -253,72 +292,31 @@ export async function detachRelative(
   const tree = await requireEditableTree();
   const treeId = tree.tree_id;
 
-  if (relation === "father" || relation === "mother") {
-    const { data: link } = await supabase
-      .from("family_children")
-      .select("family_id")
-      .eq("child_id", anchorId)
-      .maybeSingle();
-    if (!link) return;
+  const { data: anchor } = await supabase
+    .from("people")
+    .select("id")
+    .eq("id", anchorId)
+    .eq("tree_id", treeId)
+    .single();
+  if (!anchor) throw new Error("Odam topilmadi.");
 
-    const { data: family } = await supabase
-      .from("families")
-      .select("husband_id, wife_id")
-      .eq("id", link.family_id)
-      .single();
-    if (!family) return;
+  const snapshot = await loadRelationSnapshot(supabase, treeId, anchorId);
 
-    const remainingHusband = relation === "father" ? null : family.husband_id;
-    const remainingWife = relation === "mother" ? null : family.wife_id;
-
-    await supabase.from("family_children").delete().eq("child_id", anchorId);
-
-    // Re-home the child under whichever parent is left, rather than orphaning them.
-    if (remainingHusband || remainingWife) {
-      const { data: familyId, error } = await supabase.rpc("find_or_create_family", {
-        p_tree_id: treeId,
-        p_husband_id: remainingHusband,
-        p_wife_id: remainingWife,
-        p_relation_type: "unknown",
-      });
-      if (error) throw new Error(error.message);
-      await supabase
-        .from("family_children")
-        .insert({ tree_id: treeId, family_id: familyId, child_id: anchorId });
-    }
-  } else if (relation === "child") {
-    const { error } = await supabase
-      .from("family_children")
-      .delete()
-      .eq("tree_id", treeId)
-      .eq("child_id", otherPersonId);
-    if (error) throw new Error(error.message);
+  if (relation === "father") {
+    snapshot.fatherId = null;
+  } else if (relation === "mother") {
+    snapshot.motherId = null;
   } else if (relation === "spouse") {
-    const { data: family } = await supabase
-      .from("families")
-      .select("id")
-      .eq("tree_id", treeId)
-      .or(
-        `and(husband_id.eq.${anchorId},wife_id.eq.${otherPersonId}),and(husband_id.eq.${otherPersonId},wife_id.eq.${anchorId})`,
-      )
-      .maybeSingle();
-    if (!family) return;
-
-    const { count } = await supabase
-      .from("family_children")
-      .select("*", { count: "exact", head: true })
-      .eq("family_id", family.id);
-
-    if (count && count > 0) {
-      // The couple still share children, so they stay recorded as those children's
-      // parents — only the marriage claim is dropped.
-      await supabase.from("families").update({ relation_type: "unknown" }).eq("id", family.id);
-    } else {
-      await supabase.from("families").delete().eq("id", family.id);
-    }
+    snapshot.spouses = snapshot.spouses.filter((s) => s.id !== otherPersonId);
+  } else if (relation === "child") {
+    snapshot.children = snapshot.children.filter((c) => c.id !== otherPersonId);
   }
 
+  await writeRelationSnapshot(supabase, anchorId, snapshot);
+
   revalidatePath("/tree");
+  revalidatePath(`/person/${anchorId}`);
+  revalidatePath(`/person/${otherPersonId}`);
 }
 
 /** Folds a duplicate person into the one being kept. Admin-only. */
