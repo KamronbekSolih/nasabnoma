@@ -41,8 +41,12 @@ export async function middleware(request: NextRequest) {
   // Exact match only — this is the public marketing page, not a prefix that
   // would otherwise swallow every real route in the app.
   const isLandingRoute = request.nextUrl.pathname === "/";
+  // The two demo shajaras (Temuriylar, Muhammad sav) — static, read-only,
+  // built from local data rather than a real tree_id, so there's nothing
+  // here for a signed-out visitor to be gated away from.
+  const isDemoRoute = request.nextUrl.pathname.startsWith("/shajara");
 
-  if (!user && !isAuthRoute && !isResetRoute && !isLandingRoute) {
+  if (!user && !isAuthRoute && !isResetRoute && !isLandingRoute && !isDemoRoute) {
     const url = request.nextUrl.clone();
     const redirectTarget = url.pathname + url.search;
     url.pathname = "/login";

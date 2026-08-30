@@ -2,12 +2,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { buttonPrimary, buttonSecondary } from "@/components/ui/primitives";
 import { ArchFrame, OrnamentalDivider, StarRosette } from "@/components/ui/Ornament";
+import { PublicTopBar } from "./PublicTopBar";
 
 /**
  * The public marketing page at "/" — the first thing an anonymous visitor
  * sees, before any login prompt. It doesn't use AppHeader (which renders
- * nothing for a signed-out visitor, same as /login) — instead it carries its
- * own minimal top bar, in the same spirit as the login card being
+ * nothing for a signed-out visitor, same as /login) — instead it carries the
+ * shared PublicTopBar, in the same spirit as the login card being
  * self-contained rather than living inside the app chrome.
  *
  * Every feature described here is real and shipped (interactive tree,
@@ -17,32 +18,14 @@ import { ArchFrame, OrnamentalDivider, StarRosette } from "@/components/ui/Ornam
 export function Landing() {
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden">
-      <TopBar />
+      <PublicTopBar />
       <Hero />
       <Features />
       <HowItWorks />
+      <DemoTeaser />
       <FinalCta />
       <Footer />
     </div>
-  );
-}
-
-function TopBar() {
-  return (
-    <header className="border-b border-line">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-2">
-          <Image src="/brand/icon.png" alt="" width={28} height={28} className="rounded-full" />
-          <span className="font-display text-lg font-semibold tracking-tight">
-            <span className="text-brand">7</span>
-            <span className="text-ink">avlod</span>
-          </span>
-        </div>
-        <Link href="/login" className={buttonSecondary}>
-          Kirish
-        </Link>
-      </div>
-    </header>
   );
 }
 
@@ -180,6 +163,50 @@ function HowItWorks() {
           </li>
         ))}
       </ol>
+    </section>
+  );
+}
+
+const demoTrees = [
+  {
+    href: "/shajara/temuriylar",
+    title: "Temuriylar shajarasi",
+    description: "Amir Temurdan Zahiriddin Muhammad Boburgacha — olti avlod.",
+  },
+  {
+    href: "/shajara/muhammad-sav",
+    title: "Muhammad (sav) shajarasi",
+    description: "Ajdodlaridan turmush oʻrtoqlari va nabiralarigacha.",
+  },
+];
+
+function DemoTeaser() {
+  return (
+    <section className="mx-auto w-full max-w-4xl px-4 py-4 sm:px-6">
+      <div className="text-center">
+        <h2 className="font-display text-2xl font-semibold text-ink sm:text-3xl">
+          Ilova qanday ishlashini koʻring
+        </h2>
+        <OrnamentalDivider className="my-4" />
+        <p className="mx-auto max-w-lg text-sm text-ink-muted">
+          Ikkita yaxshi hujjatlashtirilgan tarixiy oila — hisob ochmasdan
+          turib, shajara qanday koʻrinishini sinab koʻring.
+        </p>
+      </div>
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        {demoTrees.map((demo) => (
+          <Link
+            key={demo.href}
+            href={demo.href}
+            className="illuminated rounded-card border border-line-strong bg-surface p-5 text-left transition-colors hover:bg-brand-soft"
+          >
+            <h3 className="font-display text-base font-semibold text-ink">{demo.title}</h3>
+            <p className="mt-1 text-sm text-ink-muted">{demo.description}</p>
+            <span className="mt-3 inline-block text-sm text-brand">Koʻrish →</span>
+          </Link>
+        ))}
+      </div>
     </section>
   );
 }

@@ -37,11 +37,15 @@ export function FamilyTreeView({
   families,
   familyChildren,
   role,
+  personHref,
 }: {
   people: Person[];
   families: Family[];
   familyChildren: FamilyChild[];
   role: TreeRole;
+  /** Forwarded to PersonPanel — overridden by read-only demo trees so relative
+   * links stay inside their own namespace instead of the real /person/[id]. */
+  personHref?: (id: string) => string;
 }) {
   const graph = useMemo(
     () => new FamilyGraph(people, families, familyChildren),
@@ -240,6 +244,7 @@ export function FamilyTreeView({
           canEdit={canEdit}
           onClose={() => setSelectedId(null)}
           onFocus={(id) => setRootId(id)}
+          personHref={personHref}
         />
       )}
     </div>

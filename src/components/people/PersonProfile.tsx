@@ -29,10 +29,18 @@ export function PersonProfile({
   person,
   graph,
   canEdit,
+  personHref = (id) => `/person/${id}`,
+  backHref = "/tree",
+  backLabel = "← Shajaraga qaytish",
 }: {
   person: Person;
   graph: FamilyGraph;
   canEdit: boolean;
+  /** Where a relative's name links to — overridden by read-only demo trees so
+   * they stay inside their own namespace (see PersonPanel for the same need). */
+  personHref?: (id: string) => string;
+  backHref?: string;
+  backLabel?: string;
 }) {
   const father = graph.fatherOf(person.id);
   const mother = graph.motherOf(person.id);
@@ -110,7 +118,11 @@ export function PersonProfile({
       {/* Relationships first: lineage is what a shajara is for. */}
       <Card title="Qarindoshlari">
         <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
-          <RelationGroup label="Ota-onasi" people={[father, mother].filter((p): p is Person => !!p)} />
+          <RelationGroup
+            label="Ota-onasi"
+            people={[father, mother].filter((p): p is Person => !!p)}
+            personHref={personHref}
+          />
           <RelationGroup
             label="Turmush oʻrtogʻi"
             people={spouses.map((s) => s.person)}
@@ -121,13 +133,15 @@ export function PersonProfile({
                   ? "beva"
                   : undefined,
             )}
+            personHref={personHref}
           />
           <RelationGroup
             label="Aka-uka, opa-singil"
             people={siblings.map((s) => s.person)}
             notes={siblings.map((s) => (s.half ? "oʻgay" : undefined))}
+            personHref={personHref}
           />
-          <RelationGroup label="Farzandlari" people={children} />
+          <RelationGroup label="Farzandlari" people={children} personHref={personHref} />
         </div>
       </Card>
 
@@ -165,8 +179,8 @@ export function PersonProfile({
         </Card>
       )}
 
-      <Link href="/tree" className="text-sm text-brand hover:underline">
-        ← Shajaraga qaytish
+      <Link href={backHref} className="text-sm text-brand hover:underline">
+        {backLabel}
       </Link>
     </div>
   );
@@ -176,10 +190,12 @@ function RelationGroup({
   label,
   people,
   notes,
+  personHref,
 }: {
   label: string;
   people: Person[];
   notes?: (string | undefined)[];
+  personHref: (id: string) => string;
 }) {
   return (
     <div>
@@ -189,7 +205,7 @@ function RelationGroup({
         {people.map((p, i) => (
           <div key={p.id} className="flex items-baseline gap-2">
             <Link
-              href={`/person/${p.id}`}
+              href={personHref(p.id)}
               className="text-sm text-ink hover:text-brand hover:underline"
             >
               {personName(p)}

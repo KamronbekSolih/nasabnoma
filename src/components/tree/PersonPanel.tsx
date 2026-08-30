@@ -15,12 +15,17 @@ export function PersonPanel({
   canEdit,
   onClose,
   onFocus,
+  personHref = (id) => `/person/${id}`,
 }: {
   person: Person;
   graph: FamilyGraph;
   canEdit: boolean;
   onClose: () => void;
   onFocus?: (id: string) => void;
+  /** Where a relative's name links to. Defaults to the real app's profile route
+   * — a read-only demo tree overrides this to stay inside its own namespace,
+   * since demo people don't exist in the database `/person/[id]` reads from. */
+  personHref?: (id: string) => string;
 }) {
   const router = useRouter();
   const [addingRelation, setAddingRelation] = useState<RelationKind | null>(null);
@@ -84,7 +89,7 @@ export function PersonPanel({
           <div className="min-w-0">
             <h2 className="font-display text-lg leading-tight text-ink">{personName(person)}</h2>
             <div className="mt-0.5 flex items-center gap-2 text-xs">
-              <Link href={`/person/${person.id}`} className="text-brand hover:underline">
+              <Link href={personHref(person.id)} className="text-brand hover:underline">
                 Batafsil
               </Link>
               {canEdit && (
@@ -139,6 +144,7 @@ export function PersonPanel({
         onPick={(id) => handlePick("father", id)}
         onRemove={(id) => handleRemove("father", id)}
         createHref={`/person/new?relation=father&of=${person.id}`}
+        personHref={personHref}
       />
       <RelationSlot
         label="Onasi"
@@ -153,6 +159,7 @@ export function PersonPanel({
         onPick={(id) => handlePick("mother", id)}
         onRemove={(id) => handleRemove("mother", id)}
         createHref={`/person/new?relation=mother&of=${person.id}`}
+        personHref={personHref}
       />
 
       <RelationList
@@ -172,6 +179,7 @@ export function PersonPanel({
         onPick={(id) => handlePick("spouse", id)}
         onRemove={(id) => handleRemove("spouse", id)}
         createHref={`/person/new?relation=spouse&of=${person.id}`}
+        personHref={personHref}
       />
 
       <RelationList
@@ -187,6 +195,7 @@ export function PersonPanel({
         onPick={(id) => handlePick("child", id)}
         onRemove={(id) => handleRemove("child", id)}
         createHref={`/person/new?relation=child&of=${person.id}`}
+        personHref={personHref}
       />
     </aside>
   );
@@ -205,6 +214,7 @@ function RelationSlot({
   onPick,
   onRemove,
   createHref,
+  personHref,
 }: {
   label: string;
   existing?: Person;
@@ -218,13 +228,14 @@ function RelationSlot({
   onPick: (id: string) => void;
   onRemove: (id: string) => void;
   createHref: string;
+  personHref: (id: string) => string;
 }) {
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{label}</p>
       {existing ? (
         <div className="flex items-center gap-2">
-          <Link href={`/person/${existing.id}`} className="text-sm text-ink hover:text-brand hover:underline">
+          <Link href={personHref(existing.id)} className="text-sm text-ink hover:text-brand hover:underline">
             {personName(existing)}
           </Link>
           {canEdit && (
@@ -270,6 +281,7 @@ function RelationList({
   onPick,
   onRemove,
   createHref,
+  personHref,
 }: {
   label: string;
   items: { id: string; name: string; note?: string }[];
@@ -283,6 +295,7 @@ function RelationList({
   onPick: (id: string) => void;
   onRemove: (id: string) => void;
   createHref: string;
+  personHref: (id: string) => string;
 }) {
   return (
     <div>
@@ -290,7 +303,7 @@ function RelationList({
       <div className="mt-1 flex flex-col gap-1">
         {items.map((item) => (
           <div key={item.id} className="flex items-center gap-2">
-            <Link href={`/person/${item.id}`} className="text-sm text-ink hover:text-brand hover:underline">
+            <Link href={personHref(item.id)} className="text-sm text-ink hover:text-brand hover:underline">
               {item.name}
             </Link>
             {item.note && <span className="text-xs text-ink-faint">({item.note})</span>}
