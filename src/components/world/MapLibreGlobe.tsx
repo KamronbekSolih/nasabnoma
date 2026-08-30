@@ -20,73 +20,24 @@ export interface CountryCount {
  * otherwise a country with a dozen relatives would sprawl across its neighbours. */
 const MAX_NAMES_PER_MARKER = 3;
 
+// These style the family-tree overlay we draw on top (arcs, pins, name labels)
+// — our own data, not the basemap itself.
 const GOLD = "#b0812f"; // --color-brand
 const GOLD_BRIGHT = "#d9a94f"; // --color-brand-line
-// Land was --color-surface (#fdfcf7) — the exact same value as the card this
-// globe sits inside (WorldView's bg-surface wrapper). Centered on continental
-// Central Asia, land dominates the visible sphere, so it was vanishing into its
-// own frame and leaving only a sliver of ocean at the edges. Both tones below
-// are picked to read clearly against bg-surface *and* against each other —
-// ocean shifted to an actual cool blue-grey rather than another shade of cream,
-// so the two aren't just relying on a narrow lightness gap to read apart.
-const LAND = "#e9e6d7"; // --color-paper-deep
-const OCEAN = "#b7c0d1"; // --color-line-strong
 const INK_MUTED = "#4d5a78"; // --color-ink-muted
 
-/** Free, keyless vector tiles — no account, no card, no request limits.
- * See https://openfreemap.org. MIT-licensed, donation-funded. */
-const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
+/** Free, keyless vector tiles — no account, no card, no request limits. See
+ * https://openfreemap.org. MIT-licensed, donation-funded. "bright" rather than
+ * "positron": shown unmodified (see below), and positron's default palette is
+ * pale enough that it read as barely-there even before any recoloring. */
+const STYLE_URL = "https://tiles.openfreemap.org/styles/bright";
 
-/** In OpenFreeMap's "positron" style, this is the one line layer whose filter is
- * a strict `admin_level == 2` match — i.e. country borders, confirmed by reading
- * the style JSON directly rather than guessing from the id. Its sibling
- * `boundary_3` covers admin_level 3–6 (state/province) and `boundary_disputed`
- * covers contested borders; both are left hidden along with everything else. */
-const COUNTRY_BOUNDARY_LAYER = "boundary_2";
-
-/**
- * Strips the style down to land, water, and country borders, then repaints those
- * three in the site's own parchment palette — a street atlas has roads,
- * buildings, and POI clutter this map has no use for, and none of it would read
- * as "the same illuminated surface as every other card" anyway.
- *
- * Unlike the Mapbox version this replaced, layers here are matched with an exact
- * id for the one layer that needs special treatment (COUNTRY_BOUNDARY_LAYER) —
- * OpenFreeMap's schema doesn't share Mapbox's "admin-0" naming convention, and
- * since this points at one style URL we control, exact-matching it is simpler
- * than guessing at a naming pattern. Each layer is still touched independently
- * and wrapped so one unexpected id can't take the rest of the recolour down.
- */
-function applyParchmentTheme(map: maplibregl.Map) {
-  const layers = map.getStyle()?.layers ?? [];
-
-  for (const layer of layers) {
-    const id = layer.id;
-    try {
-      if (layer.type === "background") {
-        map.setPaintProperty(id, "background-color", LAND);
-        continue;
-      }
-      if (layer.type === "fill" && id === "water") {
-        map.setPaintProperty(id, "fill-color", OCEAN);
-        continue;
-      }
-      if (layer.type === "line" && id === COUNTRY_BOUNDARY_LAYER) {
-        map.setPaintProperty(id, "line-color", GOLD);
-        map.setPaintProperty(id, "line-opacity", 0.45);
-        map.setPaintProperty(id, "line-width", 0.8);
-        map.setPaintProperty(id, "line-dasharray", [1, 0]); // solid, not the style's default dashed
-        continue;
-      }
-      // Everything else — roads, buildings, POIs, transit, every text label, land
-      // cover, finer administrative lines — is noise this map doesn't need.
-      map.setLayoutProperty(id, "visibility", "none");
-    } catch {
-      // A layer id/type this style didn't expect here; skip it rather than abort
-      // the whole recolour pass over one quirk.
-    }
-  }
-}
+// A prior version stripped this down to land/water/borders and repainted them
+// in the site's palette. That recolor pass kept landing on tones that matched
+// the globe's own card background too closely and made the map disappear
+// depending on which part of the world was in view — twice. Showing the style
+// exactly as OpenFreeMap ships it removes that whole failure mode; it's a
+// normal-looking map now; not custom-themed, but reliably visible.
 
 type ArcProps = { country: string; count: number };
 
@@ -249,7 +200,6 @@ export function MapLibreGlobe({
     imperativeRef.current = { drawMarkers, highlightSelection };
 
     map.on("style.load", () => {
-      applyParchmentTheme(map);
       // Must happen after the style has loaded — MapLibre throws ("Style is not
       // done loading") if setProjection is called any earlier, e.g. right after
       // construction. Globe at world view, easing flat as the country flyTo
@@ -265,26 +215,6 @@ export function MapLibreGlobe({
           6,
           "mercator",
         ] as unknown as maplibregl.ProjectionSpecification["type"],
-      });
-      // MapLibre's atmosphere config is a "sky", not Mapbox's "fog" — different
-      // shape entirely, not just a renamed prop. atmosphere-blend is what
-      // actually controls the globe's edge glow; the other properties matter
-      // once terrain is involved, which this map never uses.
-      map.setSky({
-        "sky-color": GOLD_BRIGHT,
-        "horizon-color": LAND,
-        "sky-horizon-blend": 0.5,
-        "atmosphere-blend": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          0,
-          0.4,
-          4,
-          0.15,
-          6,
-          0,
-        ],
       });
       map.addSource("arcs", {
         type: "geojson",

@@ -83,10 +83,10 @@ export function WorldView({
       </header>
 
       <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        {/* Same illuminated-manuscript surface as every other card — the style's
-            own layers are recoloured into the site's parchment tones at runtime
-            (see applyParchmentTheme in MapLibreGlobe), so the plate doesn't need
-            to be a dark ground to make the map read. */}
+        {/* The map itself is OpenFreeMap's "bright" style, shown as-is rather
+            than recoloured — an earlier attempt to retheme it kept landing on
+            tones that matched this card's own background and made the globe
+            disappear depending on which part of the world was in view. */}
         <div className="illuminated relative overflow-hidden rounded-card border border-line-strong bg-surface">
           <div className="relative mx-auto w-full max-w-[560px] p-2 sm:p-4">
             <MapLibreGlobe
