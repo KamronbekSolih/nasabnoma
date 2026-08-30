@@ -39,6 +39,25 @@ const STYLE_URL = "https://tiles.openfreemap.org/styles/bright";
 // exactly as OpenFreeMap ships it removes that whole failure mode; it's a
 // normal-looking map now; not custom-themed, but reliably visible.
 
+// The style's own country-name text (tiered by prominence into three layers,
+// confirmed by reading the live style JSON rather than guessing at ids). Hidden
+// because our own gold pins already carry the names that matter here — a
+// relative's country, not the basemap's label for it — and the two competed.
+// City/POI/road labels are left alone; those still add real context once
+// someone's zoomed into a specific country.
+const COUNTRY_LABEL_LAYERS = ["label_country_1", "label_country_2", "label_country_3"];
+
+function hideCountryLabels(map: maplibregl.Map) {
+  for (const id of COUNTRY_LABEL_LAYERS) {
+    try {
+      map.setLayoutProperty(id, "visibility", "none");
+    } catch {
+      // A style update renamed/removed the layer; skip rather than break the
+      // rest of the map over a label tier that no longer exists.
+    }
+  }
+}
+
 type ArcProps = { country: string; count: number };
 
 function greatCircleFeatureCollection(
@@ -200,6 +219,7 @@ export function MapLibreGlobe({
     imperativeRef.current = { drawMarkers, highlightSelection };
 
     map.on("style.load", () => {
+      hideCountryLabels(map);
       // Globe at world view, easing flat as the country flyTo (zoom 3.2) is
       // approached. This was the original design; it was removed for a few
       // commits while a maplibre-gl v6 bug (v6 never created its tile worker,
