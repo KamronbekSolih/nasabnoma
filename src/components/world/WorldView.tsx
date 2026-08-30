@@ -1,25 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
-import type { CountryCount } from "./MapLibreGlobe";
+import { FamilyGlobe, type CountryCount } from "./FamilyGlobe";
 import { OrnamentalDivider } from "@/components/ui/Ornament";
 import { personName } from "@/lib/people";
 import { coordsForCountry, isHomeCountry } from "@/lib/reference/coordinates";
 import type { Person } from "@/lib/types";
-
-// maplibre-gl touches window/document at runtime (map init, marker DOM elements),
-// so it can only ever run in the browser — loaded only once this section is
-// actually opened, and never part of the tree or profile page bundles.
-const MapLibreGlobe = dynamic(() => import("./MapLibreGlobe").then((m) => m.MapLibreGlobe), {
-  ssr: false,
-  loading: () => (
-    <div className="flex aspect-square w-full items-center justify-center">
-      <p className="text-sm text-ink-faint">Xarita yuklanmoqda...</p>
-    </div>
-  ),
-});
 
 export function WorldView({
   distribution,
@@ -83,13 +70,15 @@ export function WorldView({
       </header>
 
       <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        {/* The map itself is OpenFreeMap's "bright" style, shown as-is rather
-            than recoloured — an earlier attempt to retheme it kept landing on
-            tones that matched this card's own background and made the globe
-            disappear depending on which part of the world was in view. */}
+        {/* A self-contained globe — a solid-colour sphere plus real country
+            border polygons drawn on top, no tile service of any kind. Land,
+            ocean, and this card's own background are three deliberately
+            distinct tones (see the colour comments in FamilyGlobe.tsx) so the
+            globe can never blend into its own frame the way two earlier
+            versions of this map did. */}
         <div className="illuminated relative overflow-hidden rounded-card border border-line-strong bg-surface">
           <div className="relative mx-auto w-full max-w-[560px] p-2 sm:p-4">
-            <MapLibreGlobe
+            <FamilyGlobe
               distribution={distribution}
               people={people}
               selectedCountry={selected}

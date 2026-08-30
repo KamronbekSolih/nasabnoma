@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentTree } from "@/lib/tree/current";
 import { loadTreeData } from "@/lib/tree/load";
 import { WorldView } from "@/components/world/WorldView";
-import type { CountryCount } from "@/components/world/MapLibreGlobe";
+import type { CountryCount } from "@/components/world/FamilyGlobe";
 
 export const metadata = {
   title: "Dunyo boʻylab — 7avlod",
