@@ -152,27 +152,29 @@ body {
 }
 
 /**
- * Mapbox GL's own control chrome (zoom buttons, attribution) ships with its
+ * MapLibre GL's own control chrome (zoom buttons, attribution) ships with its
  * default white/grey styling — this nudges it toward the site's parchment
  * palette instead of leaving a generic web-map widget sitting on an illuminated
  * card. Only chrome is touched here; the map layers themselves are recoloured
- * at runtime in MapboxGlobe (applyParchmentTheme), not via CSS.
+ * at runtime in MapLibreGlobe (applyParchmentTheme), not via CSS. Class names
+ * are MapLibre's own (maplibregl-*) — a fork of Mapbox GL JS with its CSS
+ * classes renamed to avoid collisions, not just a renamed package.
  */
-.mapboxgl-ctrl-group {
+.maplibregl-ctrl-group {
   background: var(--color-surface) !important;
   border: 1px solid var(--color-line-strong);
   box-shadow: 0 1px 2px rgba(13, 35, 80, 0.12) !important;
 }
-.mapboxgl-ctrl-group button {
+.maplibregl-ctrl-group button {
   background: transparent !important;
 }
-.mapboxgl-ctrl-group button:hover {
+.maplibregl-ctrl-group button:hover {
   background: var(--color-paper-sunken) !important;
 }
-.mapboxgl-ctrl-attrib {
+.maplibregl-ctrl-attrib {
   background: rgba(253, 252, 247, 0.75) !important;
 }
-.mapboxgl-ctrl-attrib a {
+.maplibregl-ctrl-attrib a {
   color: var(--color-ink-muted) !important;
 }
 

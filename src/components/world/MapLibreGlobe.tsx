@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+// No default export — unlike mapbox-gl, MapLibre exports everything as named
+// exports (Map, Marker, NavigationControl, ...); a namespace import keeps every
+// maplibregl.X call site below unchanged.
+import * as maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { HOME_POINT, coordsForCountry, isHomeCountry } from "@/lib/reference/coordinates";
 import { greatCirclePath } from "@/lib/reference/greatCircle";
-import { personName } from "@/lib/people";
+import { personShortName } from "@/lib/people";
 import type { Person } from "@/lib/types";
 
 export interface CountryCount {
@@ -23,21 +26,31 @@ const LAND = "#fdfcf7"; // --color-surface
 const OCEAN = "#dcd8c7"; // --color-paper-sunken
 const INK_MUTED = "#4d5a78"; // --color-ink-muted
 
-const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+/** Free, keyless vector tiles — no account, no card, no request limits.
+ * See https://openfreemap.org. MIT-licensed, donation-funded. */
+const STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
+
+/** In OpenFreeMap's "positron" style, this is the one line layer whose filter is
+ * a strict `admin_level == 2` match — i.e. country borders, confirmed by reading
+ * the style JSON directly rather than guessing from the id. Its sibling
+ * `boundary_3` covers admin_level 3–6 (state/province) and `boundary_disputed`
+ * covers contested borders; both are left hidden along with everything else. */
+const COUNTRY_BOUNDARY_LAYER = "boundary_2";
 
 /**
- * Strips Mapbox's default style down to land, water, and country borders, then
- * repaints those three in the site's own parchment palette — a street atlas has
- * roads, buildings, and POI clutter this map has no use for, and none of it would
- * read as "the same illuminated surface as every other card" anyway.
+ * Strips the style down to land, water, and country borders, then repaints those
+ * three in the site's own parchment palette — a street atlas has roads,
+ * buildings, and POI clutter this map has no use for, and none of it would read
+ * as "the same illuminated surface as every other card" anyway.
  *
- * Layer ids are matched by substring rather than an exact whitelist: the "light"
- * style family has kept background/water/admin-0 as stable core ids for years, but
- * pinning to one style version's exact id list would silently break on a Mapbox
- * style update. Each layer is touched independently and wrapped so one unexpected
- * id can't take the rest of the recolour down with it.
+ * Unlike the Mapbox version this replaced, layers here are matched with an exact
+ * id for the one layer that needs special treatment (COUNTRY_BOUNDARY_LAYER) —
+ * OpenFreeMap's schema doesn't share Mapbox's "admin-0" naming convention, and
+ * since this points at one style URL we control, exact-matching it is simpler
+ * than guessing at a naming pattern. Each layer is still touched independently
+ * and wrapped so one unexpected id can't take the rest of the recolour down.
  */
-function applyParchmentTheme(map: mapboxgl.Map) {
+function applyParchmentTheme(map: maplibregl.Map) {
   const layers = map.getStyle()?.layers ?? [];
 
   for (const layer of layers) {
@@ -47,22 +60,23 @@ function applyParchmentTheme(map: mapboxgl.Map) {
         map.setPaintProperty(id, "background-color", LAND);
         continue;
       }
-      if (layer.type === "fill" && id.includes("water") && !id.includes("waterway")) {
+      if (layer.type === "fill" && id === "water") {
         map.setPaintProperty(id, "fill-color", OCEAN);
         continue;
       }
-      if (layer.type === "line" && id.includes("admin-0")) {
+      if (layer.type === "line" && id === COUNTRY_BOUNDARY_LAYER) {
         map.setPaintProperty(id, "line-color", GOLD);
         map.setPaintProperty(id, "line-opacity", 0.45);
         map.setPaintProperty(id, "line-width", 0.8);
+        map.setPaintProperty(id, "line-dasharray", [1, 0]); // solid, not the style's default dashed
         continue;
       }
-      // Everything else — roads, buildings, POIs, transit, every text label, minor
-      // administrative lines — is noise this map doesn't need.
+      // Everything else — roads, buildings, POIs, transit, every text label, land
+      // cover, finer administrative lines — is noise this map doesn't need.
       map.setLayoutProperty(id, "visibility", "none");
     } catch {
-      // A layer id/type Mapbox didn't expect here; skip it rather than abort the
-      // whole recolour pass over one style quirk.
+      // A layer id/type this style didn't expect here; skip it rather than abort
+      // the whole recolour pass over one quirk.
     }
   }
 }
@@ -121,7 +135,7 @@ interface LiveProps {
   namesByCountry: Map<string, string[]>;
 }
 
-export function MapboxGlobe({
+export function MapLibreGlobe({
   distribution,
   people,
   onSelectCountry,
@@ -135,8 +149,8 @@ export function MapboxGlobe({
   selectedCountry: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const markersRef = useRef<maplibregl.Marker[]>([]);
   const styleReadyRef = useRef(false);
   const imperativeRef = useRef<{ drawMarkers: () => void; highlightSelection: () => void } | null>(null);
 
@@ -145,37 +159,38 @@ export function MapboxGlobe({
     for (const p of people) {
       if (!p.current_country) continue;
       const list = map.get(p.current_country);
-      if (list) list.push(personName(p));
-      else map.set(p.current_country, [personName(p)]);
+      // Ism + familiya only here — the full three-part name (with patronymic)
+      // is what personName() gives everywhere else, but next to a map pin it's
+      // one name too many.
+      if (list) list.push(personShortName(p));
+      else map.set(p.current_country, [personShortName(p)]);
     }
     return map;
   }, [people]);
 
   const live = useRef<LiveProps>({ distribution, selectedCountry, onSelectCountry, namesByCountry });
-  // Refs can't be written during render (React flags it) — this keeps `live` fresh
-  // after every render instead, which is still well before any event handler
-  // below could read it.
+  // Refs can't be written during render (React flags it) — this keeps `live`
+  // fresh after every render instead, which is still well before any event
+  // handler below could read it.
   useEffect(() => {
     live.current = { distribution, selectedCountry, onSelectCountry, namesByCountry };
   });
 
   // Mount: create the map once. Everything data-dependent is drawn imperatively
   // (via imperativeRef, reading `live`), so this effect never needs to re-run —
-  // recreating a Mapbox GL map on every prop change would be far too heavy.
+  // recreating a MapLibre map on every prop change would be far too heavy.
   useEffect(() => {
-    if (!containerRef.current || !TOKEN) return;
-    mapboxgl.accessToken = TOKEN;
+    if (!containerRef.current) return;
 
-    const map = new mapboxgl.Map({
+    const map = new maplibregl.Map({
       container: containerRef.current,
-      style: "mapbox://styles/mapbox/light-v11",
-      projection: "globe",
+      style: STYLE_URL,
       center: [HOME_POINT.lng, 25],
       zoom: 1.2,
-      attributionControl: true,
+      attributionControl: { compact: true },
     });
     mapRef.current = map;
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "bottom-right");
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
 
     function namesForCountry(country: string): string | undefined {
       const names = live.current.namesByCountry.get(country);
@@ -202,7 +217,7 @@ export function MapboxGlobe({
           const current = live.current.selectedCountry;
           live.current.onSelectCountry(current === row.country ? null : row.country);
         });
-        const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+        const marker = new maplibregl.Marker({ element: el, anchor: "bottom" })
           .setLngLat([coords.lng, coords.lat])
           .addTo(map);
         markersRef.current.push(marker);
@@ -228,12 +243,41 @@ export function MapboxGlobe({
 
     map.on("style.load", () => {
       applyParchmentTheme(map);
-      map.setFog({
-        color: LAND,
-        "high-color": "#f4e3c2", // --color-brand-soft
-        "horizon-blend": 0.04,
-        "space-color": "#f4f2ea", // --color-paper
-        "star-intensity": 0,
+      // Must happen after the style has loaded — MapLibre throws ("Style is not
+      // done loading") if setProjection is called any earlier, e.g. right after
+      // construction. Globe at world view, easing flat as the country flyTo
+      // (zoom 3.2) is approached — MapLibre calls the globe projection
+      // "vertical-perspective", not "globe" (that's Mapbox's name for it).
+      map.setProjection({
+        type: [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          3,
+          "vertical-perspective",
+          6,
+          "mercator",
+        ] as unknown as maplibregl.ProjectionSpecification["type"],
+      });
+      // MapLibre's atmosphere config is a "sky", not Mapbox's "fog" — different
+      // shape entirely, not just a renamed prop. atmosphere-blend is what
+      // actually controls the globe's edge glow; the other properties matter
+      // once terrain is involved, which this map never uses.
+      map.setSky({
+        "sky-color": GOLD_BRIGHT,
+        "horizon-color": LAND,
+        "sky-horizon-blend": 0.5,
+        "atmosphere-blend": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          0,
+          0.4,
+          4,
+          0.15,
+          6,
+          0,
+        ],
       });
       map.addSource("arcs", {
         type: "geojson",
@@ -251,8 +295,8 @@ export function MapboxGlobe({
       highlightSelection();
     });
 
-    // Slow autorotate on load, permanently stopped the moment the user takes hold
-    // of it — same feel as the previous globe, ported to Mapbox's own recipe.
+    // Slow autorotate on load, permanently stopped the moment the user takes
+    // hold of it.
     let userInteracting = false;
     const SECONDS_PER_REVOLUTION = 240;
     const MAX_SPIN_ZOOM = 3;
@@ -291,12 +335,13 @@ export function MapboxGlobe({
   useEffect(() => {
     if (!styleReadyRef.current) return;
     imperativeRef.current?.drawMarkers();
-    const source = mapRef.current?.getSource("arcs") as mapboxgl.GeoJSONSource | undefined;
+    const source = mapRef.current?.getSource("arcs") as maplibregl.GeoJSONSource | undefined;
     source?.setData(greatCircleFeatureCollection(distribution));
   }, [distribution, namesByCountry]);
 
-  // Fly to and highlight the picked country; redraw markers so the selected one's
-  // dot/label restyles (their DOM elements don't otherwise know about selection).
+  // Fly to and highlight the picked country; redraw markers so the selected
+  // one's dot/label restyles (their DOM elements don't otherwise know about
+  // selection).
   useEffect(() => {
     if (!styleReadyRef.current) return;
     imperativeRef.current?.drawMarkers();
@@ -306,19 +351,6 @@ export function MapboxGlobe({
     if (!coords) return;
     mapRef.current?.flyTo({ center: [coords.lng, coords.lat], zoom: 3.2, duration: 900 });
   }, [selectedCountry]);
-
-  if (!TOKEN) {
-    return (
-      <div className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-card border border-dashed border-line-strong p-6 text-center">
-        <p className="text-sm font-medium text-notice">Mapbox token sozlanmagan</p>
-        <p className="max-w-xs text-xs text-ink-faint">
-          Xaritani koʻrsatish uchun <code>NEXT_PUBLIC_MAPBOX_TOKEN</code> muhit
-          oʻzgaruvchisini <code>.env.local</code> fayliga qoʻshing (mapbox.com dan
-          bepul olinadi).
-        </p>
-      </div>
-    );
-  }
 
   return <div ref={containerRef} className="aspect-square w-full overflow-hidden rounded-card" />;
 }

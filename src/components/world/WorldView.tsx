@@ -3,16 +3,16 @@
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import type { CountryCount } from "./MapboxGlobe";
+import type { CountryCount } from "./MapLibreGlobe";
 import { OrnamentalDivider } from "@/components/ui/Ornament";
 import { personName } from "@/lib/people";
 import { coordsForCountry, isHomeCountry } from "@/lib/reference/coordinates";
 import type { Person } from "@/lib/types";
 
-// mapbox-gl touches window/document at runtime (map init, marker DOM elements),
+// maplibre-gl touches window/document at runtime (map init, marker DOM elements),
 // so it can only ever run in the browser — loaded only once this section is
 // actually opened, and never part of the tree or profile page bundles.
-const MapboxGlobe = dynamic(() => import("./MapboxGlobe").then((m) => m.MapboxGlobe), {
+const MapLibreGlobe = dynamic(() => import("./MapLibreGlobe").then((m) => m.MapLibreGlobe), {
   ssr: false,
   loading: () => (
     <div className="flex aspect-square w-full items-center justify-center">
@@ -83,13 +83,13 @@ export function WorldView({
       </header>
 
       <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        {/* Same illuminated-manuscript surface as every other card — Mapbox's own
-            layers are recoloured into the site's parchment tones at runtime (see
-            applyParchmentTheme in MapboxGlobe), so the plate doesn't need to be a
-            dark ground to make the map read. */}
+        {/* Same illuminated-manuscript surface as every other card — the style's
+            own layers are recoloured into the site's parchment tones at runtime
+            (see applyParchmentTheme in MapLibreGlobe), so the plate doesn't need
+            to be a dark ground to make the map read. */}
         <div className="illuminated relative overflow-hidden rounded-card border border-line-strong bg-surface">
           <div className="relative mx-auto w-full max-w-[560px] p-2 sm:p-4">
-            <MapboxGlobe
+            <MapLibreGlobe
               distribution={distribution}
               people={people}
               selectedCountry={selected}
