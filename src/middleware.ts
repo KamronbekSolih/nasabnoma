@@ -38,8 +38,11 @@ export async function middleware(request: NextRequest) {
   // password" form is showing, this middleware already sees them as logged in.
   // Treating this route like /login would bounce them to /tree mid-flow.
   const isResetRoute = request.nextUrl.pathname.startsWith("/reset-password");
+  // Exact match only — this is the public marketing page, not a prefix that
+  // would otherwise swallow every real route in the app.
+  const isLandingRoute = request.nextUrl.pathname === "/";
 
-  if (!user && !isAuthRoute && !isResetRoute) {
+  if (!user && !isAuthRoute && !isResetRoute && !isLandingRoute) {
     const url = request.nextUrl.clone();
     const redirectTarget = url.pathname + url.search;
     url.pathname = "/login";

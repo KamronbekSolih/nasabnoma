@@ -14,7 +14,9 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const destination = searchParams.get("redirect") || "/tree";
-  const [mode, setMode] = useState<Mode>("signin");
+  const [mode, setMode] = useState<Mode>(
+    searchParams.get("mode") === "signup" ? "signup" : "signin",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +51,12 @@ function LoginForm() {
 
   return (
     <div className="w-full max-w-sm">
+      <Link
+        href="/"
+        className="mb-4 inline-flex items-center gap-1 text-xs text-ink-faint hover:text-brand"
+      >
+        ← Bosh sahifa
+      </Link>
       <div className="mb-7 text-center">
         {/* The emblem-only mark (no baked-in wordmark) — set the actual "7avlod"
             text below it, two-toned the same way as the header, rather than
