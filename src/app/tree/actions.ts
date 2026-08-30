@@ -56,11 +56,12 @@ export async function joinTreeByCode(code: string): Promise<TreeActionResult> {
   return { id: data as string };
 }
 
-export async function switchTree(treeId: string) {
+export async function switchTree(treeId: string): Promise<{ ok: true } | { error: string }> {
   const memberships = await getUserTrees();
   if (!memberships.some((m) => m.tree_id === treeId)) {
-    throw new Error("Siz bu daraxt a'zosi emassiz.");
+    return { error: "Siz bu daraxt a'zosi emassiz." };
   }
   await setCurrentTreeCookie(treeId);
   revalidatePath("/", "layout");
+  return { ok: true };
 }

@@ -163,13 +163,27 @@ export function PersonForm({
       if (!person && savedId) formData.set("id", savedId);
 
       const result = await savePerson(formData);
+      if ("error" in result) {
+        setPending(false);
+        setError(result.error);
+        return;
+      }
       setSavedId(result.id);
 
       // The person being created "as X's father/mother/spouse/child" (via the tree
       // panel's "not in the list, create new" fallback) only exists as a standalone
       // record until this runs — it's what actually links them back to X.
       if (relationContext) {
-        await attachRelative(relationContext.ofId, relationContext.relation, result.id);
+        const linkResult = await attachRelative(
+          relationContext.ofId,
+          relationContext.relation,
+          result.id,
+        );
+        if ("error" in linkResult) {
+          setPending(false);
+          setError(linkResult.error);
+          return;
+        }
       }
 
       // Land on the saved person so the change is immediately visible, rather than
@@ -187,14 +201,14 @@ export function PersonForm({
     if (!confirm(`${personName(person)}ni o'chirmoqchimisiz? Bu amalni orqaga qaytarib bo'lmaydi.`))
       return;
     setPending(true);
-    try {
-      await deletePerson(person.id);
-      router.push("/tree");
-      router.refresh();
-    } catch (e) {
+    const result = await deletePerson(person.id);
+    if ("error" in result) {
       setPending(false);
-      setError(e instanceof Error ? e.message : "Xatolik yuz berdi.");
+      setError(result.error);
+      return;
     }
+    router.push("/tree");
+    router.refresh();
   }
 
   return (

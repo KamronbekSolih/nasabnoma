@@ -47,18 +47,17 @@ export function PersonPanel({
   const childCandidates = graph.people.filter((p) => !excluded.has(p.id));
   const spouseCandidates = graph.people.filter((p) => !excluded.has(p.id));
 
-  async function run(fn: () => Promise<void>) {
+  async function run(fn: () => Promise<{ ok: true } | { error: string }>) {
     setPending(true);
     setError(null);
-    try {
-      await fn();
-      setAddingRelation(null);
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Xatolik yuz berdi.");
-    } finally {
-      setPending(false);
+    const result = await fn();
+    setPending(false);
+    if ("error" in result) {
+      setError(result.error);
+      return;
     }
+    setAddingRelation(null);
+    router.refresh();
   }
 
   const handlePick = (relation: RelationKind, otherId: string) =>

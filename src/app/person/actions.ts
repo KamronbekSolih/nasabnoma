@@ -30,34 +30,42 @@ function parseJsonField<T>(raw: FormDataEntryValue | null): T[] {
   }
 }
 
-async function requireEditableTree(): Promise<TreeMember> {
+// Next.js redacts a thrown Error's message once it crosses the Server
+// Function boundary in production (confirmed live: a user saw a raw
+// "Minified React error #441" digest instead of a real message from
+// joinTreeByCode). Every action below returns its failure as a value
+// instead of throwing, so the actual Uzbek message survives to the client.
+export type ActionError = { error: string };
+
+async function requireEditableTree(): Promise<TreeMember | ActionError> {
   const tree = await getCurrentTree();
-  if (!tree) throw new Error("Avval shajara tanlang yoki yarating.");
+  if (!tree) return { error: "Avval shajara tanlang yoki yarating." };
   if (!canEditRole(tree.role)) {
-    throw new Error("Sizda tahrirlash huquqi yoʻq — faqat koʻrish mumkin.");
+    return { error: "Sizda tahrirlash huquqi yoʻq — faqat koʻrish mumkin." };
   }
   return tree;
 }
 
-async function requireAdminTree(): Promise<TreeMember> {
+async function requireAdminTree(): Promise<TreeMember | ActionError> {
   const tree = await getCurrentTree();
-  if (!tree) throw new Error("Avval shajara tanlang yoki yarating.");
+  if (!tree) return { error: "Avval shajara tanlang yoki yarating." };
   if (!isAdminRole(tree.role)) {
-    throw new Error("Bu amal faqat administrator huquqi bilan mumkin.");
+    return { error: "Bu amal faqat administrator huquqi bilan mumkin." };
   }
   return tree;
 }
 
-export async function savePerson(formData: FormData): Promise<{ id: string }> {
+export async function savePerson(formData: FormData): Promise<{ id: string } | ActionError> {
   const supabase = await createClient();
   const tree = await requireEditableTree();
+  if ("error" in tree) return tree;
   const treeId = tree.tree_id;
 
   const id = (formData.get("id") as string) || null;
   const first_name = (formData.get("first_name") as string)?.trim();
   const gender = formData.get("gender") as string;
   if (!first_name || !gender) {
-    throw new Error("Ism va jinsi majburiy.");
+    return { error: "Ism va jinsi majburiy." };
   }
 
   const current_country = (formData.get("current_country") as string)?.trim() || null;
@@ -118,10 +126,10 @@ export async function savePerson(formData: FormData): Promise<{ id: string }> {
       .update(record)
       .eq("id", id)
       .eq("tree_id", treeId);
-    if (error) throw new Error(error.message);
+    if (error) return { error: error.message };
   } else {
     const { data, error } = await supabase.from("people").insert(record).select("id").single();
-    if (error) throw new Error(error.message);
+    if (error) return { error: error.message };
     personId = data.id;
   }
 
@@ -134,25 +142,27 @@ export async function savePerson(formData: FormData): Promise<{ id: string }> {
     p_spouses: parseJsonField<SpouseInput>(formData.get("spouses_json")).filter((s) => s.id),
     p_children: parseJsonField<ChildInput>(formData.get("children_json")).filter((c) => c.id),
   });
-  if (relError) throw new Error(relError.message);
+  if (relError) return { error: relError.message };
 
   revalidatePath("/tree");
   revalidatePath(`/person/${personId}`);
   return { id: personId! };
 }
 
-export async function deletePerson(id: string) {
+export async function deletePerson(id: string): Promise<{ ok: true } | ActionError> {
   const supabase = await createClient();
   const tree = await requireAdminTree();
+  if ("error" in tree) return tree;
 
   const { error } = await supabase
     .from("people")
     .delete()
     .eq("id", id)
     .eq("tree_id", tree.tree_id);
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
 
   revalidatePath("/tree");
+  return { ok: true };
 }
 
 interface RelationSnapshot {
@@ -239,7 +249,7 @@ async function writeRelationSnapshot(
   supabase: SupabaseClient,
   personId: string,
   snapshot: RelationSnapshot,
-) {
+): Promise<{ ok: true } | ActionError> {
   const { error } = await supabase.rpc("save_person_relations", {
     p_person_id: personId,
     p_father_id: snapshot.fatherId,
@@ -247,7 +257,8 @@ async function writeRelationSnapshot(
     p_spouses: snapshot.spouses,
     p_children: snapshot.children,
   });
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
+  return { ok: true };
 }
 
 /** Links a person to an existing relative from the tree panel — loads the anchor's
@@ -257,9 +268,10 @@ export async function attachRelative(
   anchorId: string,
   relation: RelationKind,
   otherPersonId: string,
-) {
+): Promise<{ ok: true } | ActionError> {
   const supabase = await createClient();
   const tree = await requireEditableTree();
+  if ("error" in tree) return tree;
   const treeId = tree.tree_id;
 
   const { data: anchor } = await supabase
@@ -268,15 +280,15 @@ export async function attachRelative(
     .eq("id", anchorId)
     .eq("tree_id", treeId)
     .single();
-  if (!anchor) throw new Error("Odam topilmadi.");
+  if (!anchor) return { error: "Odam topilmadi." };
 
   const snapshot = await loadRelationSnapshot(supabase, treeId, anchorId);
 
   if (relation === "father") {
-    if (snapshot.fatherId) throw new Error("Ota allaqachon qoʻshilgan.");
+    if (snapshot.fatherId) return { error: "Ota allaqachon qoʻshilgan." };
     snapshot.fatherId = otherPersonId;
   } else if (relation === "mother") {
-    if (snapshot.motherId) throw new Error("Ona allaqachon qoʻshilgan.");
+    if (snapshot.motherId) return { error: "Ona allaqachon qoʻshilgan." };
     snapshot.motherId = otherPersonId;
   } else if (relation === "spouse") {
     if (!snapshot.spouses.some((s) => s.id === otherPersonId)) {
@@ -293,11 +305,13 @@ export async function attachRelative(
     }
   }
 
-  await writeRelationSnapshot(supabase, anchorId, snapshot);
+  const result = await writeRelationSnapshot(supabase, anchorId, snapshot);
+  if ("error" in result) return result;
 
   revalidatePath("/tree");
   revalidatePath(`/person/${anchorId}`);
   revalidatePath(`/person/${otherPersonId}`);
+  return { ok: true };
 }
 
 /** Undoes an attachRelative link — for correcting a wrong pick. Same snapshot
@@ -306,9 +320,10 @@ export async function detachRelative(
   anchorId: string,
   relation: RelationKind,
   otherPersonId: string,
-) {
+): Promise<{ ok: true } | ActionError> {
   const supabase = await createClient();
   const tree = await requireEditableTree();
+  if ("error" in tree) return tree;
   const treeId = tree.tree_id;
 
   const { data: anchor } = await supabase
@@ -317,7 +332,7 @@ export async function detachRelative(
     .eq("id", anchorId)
     .eq("tree_id", treeId)
     .single();
-  if (!anchor) throw new Error("Odam topilmadi.");
+  if (!anchor) return { error: "Odam topilmadi." };
 
   const snapshot = await loadRelationSnapshot(supabase, treeId, anchorId);
 
@@ -331,33 +346,41 @@ export async function detachRelative(
     snapshot.children = snapshot.children.filter((c) => c.id !== otherPersonId);
   }
 
-  await writeRelationSnapshot(supabase, anchorId, snapshot);
+  const result = await writeRelationSnapshot(supabase, anchorId, snapshot);
+  if ("error" in result) return result;
 
   revalidatePath("/tree");
   revalidatePath(`/person/${anchorId}`);
   revalidatePath(`/person/${otherPersonId}`);
+  return { ok: true };
 }
 
 /** Folds a duplicate person into the one being kept. Admin-only. */
-export async function mergePeople(keepId: string, mergeId: string) {
+export async function mergePeople(
+  keepId: string,
+  mergeId: string,
+): Promise<{ ok: true } | ActionError> {
   const supabase = await createClient();
-  await requireAdminTree();
+  const tree = await requireAdminTree();
+  if ("error" in tree) return tree;
 
   const { error } = await supabase.rpc("merge_people", {
     p_keep_id: keepId,
     p_merge_id: mergeId,
   });
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
 
   revalidatePath("/tree");
+  return { ok: true };
 }
 
 /** Marks a person record as being the signed-in user's own. */
-export async function claimPerson(personId: string) {
+export async function claimPerson(personId: string): Promise<{ ok: true } | ActionError> {
   const supabase = await createClient();
   const { error } = await supabase.rpc("claim_person", { p_person_id: personId });
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
 
   revalidatePath("/tree");
   revalidatePath(`/person/${personId}`);
+  return { ok: true };
 }

@@ -30,17 +30,16 @@ export function MembersCard({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function run(fn: () => Promise<void>) {
+  async function run(fn: () => Promise<{ ok: true } | { error: string }>) {
     setPending(true);
     setError(null);
-    try {
-      await fn();
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Xatolik yuz berdi.");
-    } finally {
-      setPending(false);
+    const result = await fn();
+    setPending(false);
+    if ("error" in result) {
+      setError(result.error);
+      return;
     }
+    router.refresh();
   }
 
   return (

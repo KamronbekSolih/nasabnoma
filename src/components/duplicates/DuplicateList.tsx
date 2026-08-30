@@ -35,14 +35,13 @@ export function DuplicateList({ pairs }: { pairs: DuplicatePair[] }) {
     }
     setPending(`${keep.id}:${merge.id}`);
     setError(null);
-    try {
-      await mergePeople(keep.id, merge.id);
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Xatolik yuz berdi.");
-    } finally {
-      setPending(null);
+    const result = await mergePeople(keep.id, merge.id);
+    setPending(null);
+    if ("error" in result) {
+      setError(result.error);
+      return;
     }
+    router.refresh();
   }
 
   if (visible.length === 0) {
