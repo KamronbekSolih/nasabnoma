@@ -15,32 +15,41 @@ async function setCurrentTreeCookie(treeId: string) {
   });
 }
 
-export async function createTree(name: string): Promise<{ id: string }> {
+// Next.js redacts a thrown Error's message once it crosses the Server
+// Function boundary in production — the client only ever sees a generic
+// "Minified React error #441" digest, never the actual Uzbek text (confirmed
+// live: this was exactly what a user hit trying to join with an invite
+// code). Expected, user-facing failures here are modeled as return values
+// instead, per the framework's own guidance for this — not thrown — so the
+// real message survives to the client.
+export type TreeActionResult = { id: string } | { error: string };
+
+export async function createTree(name: string): Promise<TreeActionResult> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) throw new Error("Sessiya tugagan. Qaytadan kiring.");
+  if (!user) return { error: "Sessiya tugagan. Qaytadan kiring." };
 
   const { data, error } = await supabase.rpc("create_tree", { tree_name: name });
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
 
   await setCurrentTreeCookie(data as string);
   revalidatePath("/", "layout");
   return { id: data as string };
 }
 
-export async function joinTreeByCode(code: string): Promise<{ id: string }> {
+export async function joinTreeByCode(code: string): Promise<TreeActionResult> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) throw new Error("Sessiya tugagan. Qaytadan kiring.");
+  if (!user) return { error: "Sessiya tugagan. Qaytadan kiring." };
 
   const { data, error } = await supabase.rpc("join_tree_by_code", {
     invite_code_input: code,
   });
-  if (error) throw new Error(error.message);
+  if (error) return { error: error.message };
 
   await setCurrentTreeCookie(data as string);
   revalidatePath("/", "layout");

@@ -18,18 +18,17 @@ export function OnboardingForm() {
     e.preventDefault();
     setError(null);
     setPending(true);
-    try {
-      if (mode === "create") {
-        await createTree(treeName || "Oilaviy shajara");
-      } else {
-        await joinTreeByCode(code);
-      }
-      router.push("/tree");
-      router.refresh();
-    } catch (err) {
+    const result =
+      mode === "create"
+        ? await createTree(treeName || "Oilaviy shajara")
+        : await joinTreeByCode(code);
+    if ("error" in result) {
       setPending(false);
-      setError(err instanceof Error ? err.message : "Xatolik yuz berdi.");
+      setError(result.error);
+      return;
     }
+    router.push("/tree");
+    router.refresh();
   }
 
   return (

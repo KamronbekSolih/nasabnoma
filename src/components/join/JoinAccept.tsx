@@ -10,16 +10,15 @@ export function JoinAccept({ code }: { code: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    joinTreeByCode(code)
-      .then(() => {
-        if (cancelled) return;
-        router.push("/tree");
-        router.refresh();
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : "Taklif kodi noto'g'ri.");
-      });
+    joinTreeByCode(code).then((result) => {
+      if (cancelled) return;
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      router.push("/tree");
+      router.refresh();
+    });
     return () => {
       cancelled = true;
     };
