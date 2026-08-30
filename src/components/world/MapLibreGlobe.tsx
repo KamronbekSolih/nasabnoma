@@ -200,16 +200,27 @@ export function MapLibreGlobe({
     imperativeRef.current = { drawMarkers, highlightSelection };
 
     map.on("style.load", () => {
-      // No setProjection call — plain mercator. A prior version called
-      // map.setProjection() with an interpolate-expression type (to render as a
-      // globe at world view, easing flat on country zoom-in). The style itself
-      // loaded fine either way, but with that call in place tiles were never
-      // actually fetched: confirmed live by spinning up a second, otherwise
-      // identical map on the same page with no projection call, which rendered
-      // correctly right next to the broken one. Whatever the exact cause —
-      // MapLibre's tile-covering calculation not handling an expression-valued
-      // projection type — dropping it is what makes tiles load at all, which
-      // matters more right now than the globe effect.
+      // Globe at world view, easing flat as the country flyTo (zoom 3.2) is
+      // approached. This was the original design; it was removed for a few
+      // commits while a maplibre-gl v6 bug (v6 never created its tile worker,
+      // so no tiles ever loaded, with or without this call) was misdiagnosed as
+      // this expression specifically. Now pinned to v5, confirmed working live
+      // on production — see the fix commit for how that was actually isolated.
+      // MapLibre calls this projection "vertical-perspective", not "globe"
+      // (that's Mapbox's name for the equivalent). Must happen after the style
+      // has loaded — MapLibre throws ("Style is not done loading") if called
+      // any earlier, e.g. right after construction.
+      map.setProjection({
+        type: [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          3,
+          "vertical-perspective",
+          6,
+          "mercator",
+        ] as unknown as maplibregl.ProjectionSpecification["type"],
+      });
       map.addSource("arcs", {
         type: "geojson",
         data: greatCircleFeatureCollection(live.current.distribution),
