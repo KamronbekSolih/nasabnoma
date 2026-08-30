@@ -7,7 +7,6 @@ import { useEffect, useMemo, useRef } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { HOME_POINT, coordsForCountry, isHomeCountry } from "@/lib/reference/coordinates";
-import { greatCirclePath } from "@/lib/reference/greatCircle";
 import { personShortName } from "@/lib/people";
 import type { Person } from "@/lib/types";
 
@@ -20,8 +19,8 @@ export interface CountryCount {
  * otherwise a country with a dozen relatives would sprawl across its neighbours. */
 const MAX_NAMES_PER_MARKER = 3;
 
-// These style the family-tree overlay we draw on top (arcs, pins, name labels)
-// — our own data, not the basemap itself.
+// These style the family-tree overlay we draw on top (pins, name labels) — our
+// own data, not the basemap itself.
 const GOLD = "#b0812f"; // --color-brand
 const GOLD_BRIGHT = "#d9a94f"; // --color-brand-line
 const INK_MUTED = "#4d5a78"; // --color-ink-muted
@@ -39,42 +38,25 @@ const STYLE_URL = "https://tiles.openfreemap.org/styles/bright";
 // exactly as OpenFreeMap ships it removes that whole failure mode; it's a
 // normal-looking map now; not custom-themed, but reliably visible.
 
-// The style's own country-name text (tiered by prominence into three layers,
-// confirmed by reading the live style JSON rather than guessing at ids). Hidden
-// because our own gold pins already carry the names that matter here — a
-// relative's country, not the basemap's label for it — and the two competed.
-// City/POI/road labels are left alone; those still add real context once
-// someone's zoomed into a specific country.
-const COUNTRY_LABEL_LAYERS = ["label_country_1", "label_country_2", "label_country_3"];
-
-function hideCountryLabels(map: maplibregl.Map) {
-  for (const id of COUNTRY_LABEL_LAYERS) {
+/**
+ * Hides every text/icon label the basemap draws — country names, sea and
+ * ocean names, city/town/POI labels, road shields — leaving only our own gold
+ * pins and name labels. Started as just the three country-name layers, then
+ * grew to "all of it" once it was clear the basemap's own labels were always
+ * going to compete with ours rather than add anything: a city label sitting
+ * under one of our pins doesn't clarify who's there, it just clutters. Matched
+ * by type rather than a hardcoded id list, since that list only ever grew.
+ */
+function hideBasemapLabels(map: maplibregl.Map) {
+  const layers = map.getStyle()?.layers ?? [];
+  for (const layer of layers) {
+    if (layer.type !== "symbol") continue;
     try {
-      map.setLayoutProperty(id, "visibility", "none");
+      map.setLayoutProperty(layer.id, "visibility", "none");
     } catch {
-      // A style update renamed/removed the layer; skip rather than break the
-      // rest of the map over a label tier that no longer exists.
+      // Skip rather than let one unexpected layer abort the rest.
     }
   }
-}
-
-type ArcProps = { country: string; count: number };
-
-function greatCircleFeatureCollection(
-  distribution: CountryCount[],
-): GeoJSON.FeatureCollection<GeoJSON.LineString, ArcProps> {
-  const features: GeoJSON.Feature<GeoJSON.LineString, ArcProps>[] = [];
-  for (const row of distribution) {
-    if (isHomeCountry(row.country)) continue;
-    const coords = coordsForCountry(row.country);
-    if (!coords) continue;
-    features.push({
-      type: "Feature",
-      properties: { country: row.country, count: row.person_count },
-      geometry: { type: "LineString", coordinates: greatCirclePath(HOME_POINT, coords) },
-    });
-  }
-  return { type: "FeatureCollection", features };
 }
 
 function buildMarkerElement(opts: { isHome: boolean; isSelected: boolean; names?: string }): HTMLDivElement {
@@ -91,11 +73,11 @@ function buildMarkerElement(opts: { isHome: boolean; isSelected: boolean; names?
   el.appendChild(dot);
 
   if (opts.names) {
+    // Plain text, no background chip — just the name sitting on the map.
     const label = document.createElement("span");
     label.textContent = opts.names;
-    label.className = "font-body italic whitespace-nowrap rounded px-1 text-[11px] leading-tight";
+    label.className = "font-body italic whitespace-nowrap text-[11px] leading-tight";
     label.style.color = opts.isSelected ? GOLD_BRIGHT : INK_MUTED;
-    label.style.background = "rgba(248,244,236,0.85)";
     el.appendChild(label);
   }
 
@@ -129,7 +111,7 @@ export function MapLibreGlobe({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const styleReadyRef = useRef(false);
-  const imperativeRef = useRef<{ drawMarkers: () => void; highlightSelection: () => void } | null>(null);
+  const imperativeRef = useRef<{ drawMarkers: () => void } | null>(null);
 
   const namesByCountry = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -201,35 +183,15 @@ export function MapLibreGlobe({
       }
     }
 
-    function highlightSelection() {
-      if (!map.getLayer("arcs-line")) return;
-      const selected = live.current.selectedCountry;
-      map.setPaintProperty(
-        "arcs-line",
-        "line-color",
-        selected ? ["match", ["get", "country"], selected, GOLD_BRIGHT, GOLD] : GOLD,
-      );
-      map.setPaintProperty(
-        "arcs-line",
-        "line-width",
-        selected ? ["match", ["get", "country"], selected, 2.2, 1.2] : 1.2,
-      );
-    }
-
-    imperativeRef.current = { drawMarkers, highlightSelection };
+    imperativeRef.current = { drawMarkers };
 
     map.on("style.load", () => {
-      hideCountryLabels(map);
+      hideBasemapLabels(map);
       // Globe at world view, easing flat as the country flyTo (zoom 3.2) is
-      // approached. This was the original design; it was removed for a few
-      // commits while a maplibre-gl v6 bug (v6 never created its tile worker,
-      // so no tiles ever loaded, with or without this call) was misdiagnosed as
-      // this expression specifically. Now pinned to v5, confirmed working live
-      // on production — see the fix commit for how that was actually isolated.
-      // MapLibre calls this projection "vertical-perspective", not "globe"
-      // (that's Mapbox's name for the equivalent). Must happen after the style
-      // has loaded — MapLibre throws ("Style is not done loading") if called
-      // any earlier, e.g. right after construction.
+      // approached. MapLibre calls this projection "vertical-perspective", not
+      // "globe" (that's Mapbox's name for the equivalent). Must happen after
+      // the style has loaded — MapLibre throws ("Style is not done loading")
+      // if called any earlier, e.g. right after construction.
       map.setProjection({
         type: [
           "interpolate",
@@ -241,20 +203,8 @@ export function MapLibreGlobe({
           "mercator",
         ] as unknown as maplibregl.ProjectionSpecification["type"],
       });
-      map.addSource("arcs", {
-        type: "geojson",
-        data: greatCircleFeatureCollection(live.current.distribution),
-      });
-      map.addLayer({
-        id: "arcs-line",
-        type: "line",
-        source: "arcs",
-        layout: { "line-cap": "round" },
-        paint: { "line-color": GOLD, "line-width": 1.2, "line-opacity": 0.75 },
-      });
       styleReadyRef.current = true;
       drawMarkers();
-      highlightSelection();
     });
 
     // Slow autorotate on load, permanently stopped the moment the user takes
@@ -293,21 +243,17 @@ export function MapLibreGlobe({
     };
   }, []);
 
-  // Redraw markers and the arc source when the underlying data changes.
+  // Redraw markers when the underlying data changes.
   useEffect(() => {
     if (!styleReadyRef.current) return;
     imperativeRef.current?.drawMarkers();
-    const source = mapRef.current?.getSource("arcs") as maplibregl.GeoJSONSource | undefined;
-    source?.setData(greatCircleFeatureCollection(distribution));
   }, [distribution, namesByCountry]);
 
-  // Fly to and highlight the picked country; redraw markers so the selected
-  // one's dot/label restyles (their DOM elements don't otherwise know about
-  // selection).
+  // Fly to the picked country; redraw markers so the selected one's dot/label
+  // restyles (their DOM elements don't otherwise know about selection).
   useEffect(() => {
     if (!styleReadyRef.current) return;
     imperativeRef.current?.drawMarkers();
-    imperativeRef.current?.highlightSelection();
     if (!selectedCountry) return;
     const coords = coordsForCountry(selectedCountry);
     if (!coords) return;
