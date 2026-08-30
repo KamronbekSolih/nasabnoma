@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { buttonPrimary, inputClass, Field } from "@/components/ui/primitives";
@@ -112,6 +113,15 @@ function LoginForm() {
               className={inputClass}
             />
           </Field>
+
+          {mode === "signin" && (
+            <Link
+              href="/reset-password"
+              className="-mt-2 self-end text-xs text-ink-muted hover:text-brand hover:underline"
+            >
+              Parolni unutdingizmi?
+            </Link>
+          )}
 
           {error && <p className="text-sm text-danger">{error}</p>}
           {info && <p className="text-sm text-brand">{info}</p>}

@@ -18,7 +18,9 @@ export function AppHeader({
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  if (!userEmail || pathname.startsWith("/login")) return null;
+  if (!userEmail || pathname.startsWith("/login") || pathname.startsWith("/reset-password")) {
+    return null;
+  }
 
   const links = [
     { href: "/tree", label: "Shajara" },

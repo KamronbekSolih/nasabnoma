@@ -30,8 +30,16 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isAuthRoute = request.nextUrl.pathname.startsWith("/login");
+  // Public regardless of auth state, in both directions: an unauthenticated
+  // visitor needs to reach it to request a reset, and a signed-in one needs to
+  // reach it too — a recovery link's #access_token is consumed into a real
+  // session client-side (never visible to this server-side check at all, since
+  // URL fragments are never sent in the request), so by the time the "set a new
+  // password" form is showing, this middleware already sees them as logged in.
+  // Treating this route like /login would bounce them to /tree mid-flow.
+  const isResetRoute = request.nextUrl.pathname.startsWith("/reset-password");
 
-  if (!user && !isAuthRoute) {
+  if (!user && !isAuthRoute && !isResetRoute) {
     const url = request.nextUrl.clone();
     const redirectTarget = url.pathname + url.search;
     url.pathname = "/login";
