@@ -1,4 +1,3 @@
-import { personName } from "@/lib/people";
 import type { Person } from "@/lib/types";
 
 export interface DuplicatePair {
@@ -6,6 +5,26 @@ export interface DuplicatePair {
   b: Person;
   score: number;
   reasons: string[];
+}
+
+/**
+ * The two ids of a pair in a stable, canonical order (smaller uuid first).
+ *
+ * findDuplicateCandidates assigns a/b purely by position in the input array, and
+ * that array is ordered by first_name with no tiebreaker — so for identical first
+ * names, which is exactly the highest-confidence case, the same logical pair can
+ * come back as (a,b) on one load and (b,a) on the next. Anything persisted per
+ * pair must key off this rather than the raw a/b order, or it will appear to work
+ * and then intermittently lose track of pairs. Mirrors the database's own
+ * `check (person_a_id < person_b_id)` on duplicate_dismissals.
+ */
+export function canonicalPair(aId: string, bId: string): { lo: string; hi: string } {
+  return aId < bId ? { lo: aId, hi: bId } : { lo: bId, hi: aId };
+}
+
+export function pairKey(aId: string, bId: string): string {
+  const { lo, hi } = canonicalPair(aId, bId);
+  return `${lo}:${hi}`;
 }
 
 /** Uzbek is written with several apostrophe conventions (oʻ/o'/o`) and in both Latin
@@ -111,8 +130,4 @@ export function findDuplicateCandidates(people: Person[], threshold = 0.82): Dup
   }
 
   return pairs.sort((x, y) => y.score - x.score);
-}
-
-export function pairLabel(pair: DuplicatePair): string {
-  return `${personName(pair.a)} / ${personName(pair.b)}`;
 }

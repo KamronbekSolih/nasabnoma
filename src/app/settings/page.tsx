@@ -5,6 +5,7 @@ import { getCurrentTree, getUserTrees, isAdminRole } from "@/lib/tree/current";
 import { InviteCard } from "@/components/settings/InviteCard";
 import { TreeSwitcher } from "@/components/settings/TreeSwitcher";
 import { MembersCard } from "@/components/settings/MembersCard";
+import { AddTreeCard } from "@/components/settings/AddTreeCard";
 import type { TreeMemberRow } from "@/lib/types";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -63,6 +64,8 @@ export default async function SettingsPage() {
       )}
 
       <TreeSwitcher memberships={memberships} currentTreeId={tree.tree_id} />
+
+      <AddTreeCard />
     </main>
   );
 }
