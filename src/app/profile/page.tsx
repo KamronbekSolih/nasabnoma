@@ -5,6 +5,7 @@ import { getCurrentTree } from "@/lib/tree/current";
 import { getMyProfile } from "@/lib/profile";
 import { personName } from "@/lib/people";
 import { ProfileForm } from "@/components/profile/ProfileForm";
+import { LinkedAccounts } from "@/components/profile/LinkedAccounts";
 import { Card, Notice } from "@/components/ui/primitives";
 import type { Person } from "@/lib/types";
 
@@ -61,6 +62,15 @@ export default async function ProfilePage() {
             va u yerda <strong>&laquo;Bu menman&raquo;</strong> tugmasini bosing.
           </p>
         )}
+      </Card>
+
+      <Card
+        title="Kirish usullari"
+        description="Bitta hisobga bir nechta kirish usulini bogʻlashingiz mumkin."
+      >
+        <LinkedAccounts
+          providers={(user.identities ?? []).map((i) => i.provider)}
+        />
       </Card>
 
       <Card title="Hisob">
