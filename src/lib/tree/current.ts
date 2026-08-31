@@ -16,9 +16,24 @@ interface TreeMembershipRow {
  * page, and each server action — share a single query instead of repeating it. */
 export const getUserTrees = cache(async (): Promise<TreeMember[]> => {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  // The user_id filter is load-bearing, not redundant with RLS. The policy on
+  // tree_members is `is_tree_member(tree_id)`, which deliberately exposes EVERY
+  // member row of any tree you belong to — the members list depends on that.
+  // Without this filter the query returned all members' rows and the caller
+  // treated the first by joined_at (the owner's) as the current user's own
+  // membership, so every member of a tree silently inherited the owner's role:
+  // admin-only UI appeared for plain members, and the server-side
+  // requireAdminTree() checks passed for them. Only Postgres RLS, which reads
+  // auth.uid() directly, stopped the actual writes.
   const { data } = await supabase
     .from("tree_members")
     .select("tree_id, role, trees(name)")
+    .eq("user_id", user.id)
     .order("joined_at");
 
   return ((data as TreeMembershipRow[] | null) ?? []).map((row) => {
