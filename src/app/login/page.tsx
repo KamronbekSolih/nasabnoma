@@ -5,10 +5,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { buttonPrimary, inputClass, Field } from "@/components/ui/primitives";
+import { buttonPrimary, buttonSecondary, inputClass, Field } from "@/components/ui/primitives";
 import { OrnamentalDivider } from "@/components/ui/Ornament";
 
 type Mode = "signin" | "signup";
+
+/** Set once the Custom OIDC provider exists in the Supabase dashboard, e.g.
+ * "custom:telegram". Until then the button stays hidden rather than showing
+ * relatives a control that returns "provider is not enabled". */
+const TELEGRAM_PROVIDER = process.env.NEXT_PUBLIC_TELEGRAM_PROVIDER;
 
 function LoginForm() {
   const router = useRouter();
@@ -20,9 +25,32 @@ function LoginForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // The OAuth callback route reports failures by redirecting here with ?error=.
+  const [error, setError] = useState<string | null>(searchParams.get("error"));
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  async function handleTelegram() {
+    if (!TELEGRAM_PROVIDER) return;
+    setError(null);
+    setLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      // Custom providers are addressed with a "custom:" prefix on the slug
+      // chosen in the dashboard.
+      provider: TELEGRAM_PROVIDER as Parameters<
+        typeof supabase.auth.signInWithOAuth
+      >[0]["provider"],
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(destination)}`,
+      },
+    });
+    // On success the browser navigates away, so this only runs on failure.
+    if (error) {
+      setLoading(false);
+      setError(error.message);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -104,6 +132,25 @@ function LoginForm() {
           ))}
         </div>
 
+        {TELEGRAM_PROVIDER && (
+          <>
+            <button
+              type="button"
+              onClick={handleTelegram}
+              disabled={loading}
+              className={`${buttonSecondary} mt-5 w-full gap-2`}
+            >
+              <TelegramMark />
+              Telegram orqali kirish
+            </button>
+            <div className="mt-4 flex items-center gap-3">
+              <span className="h-px flex-1 bg-line" />
+              <span className="text-xs text-ink-faint">yoki email bilan</span>
+              <span className="h-px flex-1 bg-line" />
+            </div>
+          </>
+        )}
+
         <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-4">
           {mode === "signup" && (
             <Field
@@ -166,6 +213,14 @@ function LoginForm() {
         </form>
       </div>
     </div>
+  );
+}
+
+function TelegramMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M21.9 4.3 18.7 19.4c-.24 1.07-.88 1.33-1.78.83l-4.9-3.62-2.37 2.28c-.26.26-.48.48-.99.48l.35-4.99 9.09-8.21c.4-.35-.09-.55-.61-.2L6.26 12.4 1.4 10.88c-1.06-.33-1.08-1.06.22-1.57l19-7.32c.88-.32 1.65.2 1.28 2.31z" />
+    </svg>
   );
 }
 

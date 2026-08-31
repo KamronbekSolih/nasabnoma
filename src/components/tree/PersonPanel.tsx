@@ -87,7 +87,7 @@ export function PersonPanel({
           )}
           <div className="min-w-0">
             <h2 className="font-display text-lg leading-tight text-ink">{personName(person)}</h2>
-            <div className="mt-0.5 flex items-center gap-2 text-xs">
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
               <Link href={personHref(person.id)} className="text-brand hover:underline">
                 Batafsil
               </Link>
@@ -116,7 +116,7 @@ export function PersonPanel({
             </div>
           </div>
         </div>
-        <button onClick={onClose} className="-mt-1 -mr-1 flex h-9 w-9 items-center justify-center rounded-lg text-ink-faint hover:bg-paper-sunken hover:text-ink">
+        <button onClick={onClose} className="-mt-1 -mr-1 flex h-11 w-11 items-center justify-center rounded-lg text-ink-faint hover:bg-paper-sunken hover:text-ink sm:h-9 sm:w-9">
           ✕
         </button>
       </div>
@@ -234,7 +234,7 @@ function RelationSlot({
       <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{label}</p>
       {existing ? (
         <div className="flex items-center gap-2">
-          <Link href={personHref(existing.id)} className="text-sm text-ink hover:text-brand hover:underline">
+          <Link href={personHref(existing.id)} className="inline-flex min-h-11 items-center text-sm text-ink hover:text-brand hover:underline sm:min-h-0">
             {personName(existing)}
           </Link>
           {canEdit && (
@@ -242,7 +242,7 @@ function RelationSlot({
               type="button"
               disabled={pending}
               onClick={() => onRemove(existing.id)}
-              className="text-xs text-danger hover:underline disabled:opacity-50"
+              className="inline-flex min-h-11 items-center rounded-card px-2 text-sm text-danger hover:bg-danger-soft disabled:opacity-50 sm:min-h-8"
             >
               olib tashlash
             </button>
@@ -257,7 +257,7 @@ function RelationSlot({
           createHref={createHref}
         />
       ) : canEdit ? (
-        <button type="button" onClick={onStartAdd} className="text-sm text-brand hover:underline">
+        <button type="button" onClick={onStartAdd} className="inline-flex min-h-11 items-center rounded-card px-2 text-sm text-brand hover:bg-brand-soft sm:min-h-8">
           {addLabel}
         </button>
       ) : (
@@ -302,7 +302,7 @@ function RelationList({
       <div className="mt-1 flex flex-col gap-1">
         {items.map((item) => (
           <div key={item.id} className="flex items-center gap-2">
-            <Link href={personHref(item.id)} className="text-sm text-ink hover:text-brand hover:underline">
+            <Link href={personHref(item.id)} className="inline-flex min-h-11 items-center text-sm text-ink hover:text-brand hover:underline sm:min-h-0">
               {item.name}
             </Link>
             {item.note && <span className="text-xs text-ink-faint">({item.note})</span>}
@@ -311,7 +311,7 @@ function RelationList({
                 type="button"
                 disabled={pending}
                 onClick={() => onRemove(item.id)}
-                className="text-xs text-danger hover:underline disabled:opacity-50"
+                className="inline-flex min-h-11 items-center rounded-card px-2 text-sm text-danger hover:bg-danger-soft disabled:opacity-50 sm:min-h-8"
               >
                 olib tashlash
               </button>
@@ -332,7 +332,7 @@ function RelationList({
             <button
               type="button"
               onClick={onStartAdd}
-              className="text-left text-sm text-brand hover:underline"
+              className="inline-flex min-h-11 items-center self-start rounded-card px-2 text-sm text-brand hover:bg-brand-soft sm:min-h-8"
             >
               {addLabel}
             </button>

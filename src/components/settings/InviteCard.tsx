@@ -17,8 +17,8 @@ export function InviteCard({ code }: { code: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-5">
-      <h2 className="text-sm font-semibold text-ink-muted uppercase tracking-wide">
+    <div className="flex flex-col gap-3 rounded-card border border-line bg-transparent p-4 shadow-[0_1px_2px_rgba(27,26,24,0.08)] sm:p-5">
+      <h2 className="font-display text-sm font-semibold tracking-wide text-ink-muted uppercase">
         Oila a&apos;zolarini taklif qilish
       </h2>
       <p className="text-sm text-ink-muted">
@@ -26,16 +26,16 @@ export function InviteCard({ code }: { code: string }) {
         avtomatik qo&apos;shiladi.
       </p>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <input
           readOnly
           value={link}
-          className="flex-1 rounded-lg border border-line-strong bg-paper px-3 py-2 text-sm text-ink"
+          className="min-h-11 flex-1 rounded-card border border-line-strong bg-paper px-3 text-base text-ink sm:min-h-10 sm:text-sm"
         />
         <button
           type="button"
           onClick={() => copy(link, "link")}
-          className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white hover:opacity-90"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-card border border-brand px-4 font-display text-sm font-semibold text-brand transition-colors hover:bg-brand-soft sm:min-h-10"
         >
           {copied === "link" ? "Nusxalandi!" : "Nusxalash"}
         </button>
@@ -47,7 +47,7 @@ export function InviteCard({ code }: { code: string }) {
         <button
           type="button"
           onClick={() => copy(code, "code")}
-          className="text-brand hover:underline"
+          className="inline-flex min-h-11 items-center rounded-card px-2 text-brand hover:bg-brand-soft sm:min-h-8"
         >
           {copied === "code" ? "Nusxalandi!" : "Nusxalash"}
         </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import ReactFamilyTree from "react-family-tree";
 import type { ExtNode } from "relatives-tree/lib/types";
 import Link from "next/link";
@@ -63,6 +63,61 @@ export function FamilyTreeView({
   // one node, so relative layout (who's next to whom) never changes, only the size.
   const [zoom, setZoom] = useState(1);
 
+  // Touch gestures. The canvas previously offered neither drag-to-pan nor
+  // pinch-zoom: the only way to move was scrolling a nested scroll container
+  // (which chains to the page), and the only way to zoom out was tapping a 32px
+  // button seven times. Panning and pinching are handled here with pointer
+  // events so mouse, pen and touch all take the same path.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
+  const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+
+  function pointerPositions() {
+    return Array.from(pointers.current.values());
+  }
+
+  function handlePointerDown(e: React.PointerEvent) {
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.current.size === 2) {
+      const [a, b] = pointerPositions();
+      pinchRef.current = { distance: Math.hypot(b.x - a.x, b.y - a.y), zoom };
+      panRef.current = null;
+      return;
+    }
+    const el = scrollRef.current;
+    if (el && pointers.current.size === 1) {
+      panRef.current = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
+    }
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.current.size >= 2 && pinchRef.current) {
+      const [a, b] = pointerPositions();
+      const distance = Math.hypot(b.x - a.x, b.y - a.y);
+      if (pinchRef.current.distance > 0) {
+        setZoom(clampZoom(pinchRef.current.zoom * (distance / pinchRef.current.distance)));
+      }
+      return;
+    }
+
+    const el = scrollRef.current;
+    if (el && panRef.current) {
+      el.scrollLeft = panRef.current.left - (e.clientX - panRef.current.x);
+      el.scrollTop = panRef.current.top - (e.clientY - panRef.current.y);
+    }
+  }
+
+  function endPointer(e: React.PointerEvent) {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinchRef.current = null;
+    if (pointers.current.size === 0) panRef.current = null;
+  }
+
   const effectiveRootId = rootId && graph.personById.has(rootId) ? rootId : defaultRootId;
   const selectedPerson = selectedId ? graph.personById.get(selectedId) : undefined;
   const canEdit = canEditRole(role);
@@ -122,7 +177,7 @@ export function FamilyTreeView({
                       setSelectedId(p.id);
                       setQuery("");
                     }}
-                    className="block w-full px-3 py-2 text-left text-sm text-ink hover:bg-brand-soft"
+                    className="block min-h-11 w-full px-3 py-2.5 text-left text-base text-ink hover:bg-brand-soft sm:min-h-9 sm:text-sm"
                   >
                     {personName(p)}
                   </button>
@@ -155,7 +210,18 @@ export function FamilyTreeView({
           never the reach of PersonPanel's z-20 side drawer, without it scrolling
           away with the tree underneath it. */}
       <div className="relative flex-1 overflow-hidden">
-        <div className="absolute inset-0 overflow-auto p-6">
+        <div
+          ref={scrollRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={endPointer}
+          onPointerCancel={endPointer}
+          onPointerLeave={endPointer}
+          // touch-action:none hands every gesture to the handlers above, so a
+          // pinch is not stolen by the browser and a drag never chains out to
+          // scroll the page behind the canvas. Taps still fire normally.
+          className="absolute inset-0 touch-none overflow-auto overscroll-contain p-6"
+        >
           {/* CSS transform scales the whole canvas without touching the layout math
               inside ReactFamilyTree/FamilyNode (still WIDTH×HEIGHT per node) — the
               wrapper's own box shrinks to fit its (pre-scale) content so the scrolling
@@ -193,14 +259,14 @@ export function FamilyTreeView({
               onClick={() => setZoom((z) => clampZoom(z / ZOOM_STEP))}
               disabled={zoom <= ZOOM_MIN}
               aria-label="Kichraytirish"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-lg text-ink hover:bg-paper-sunken disabled:opacity-30"
+              className="flex h-11 w-11 items-center justify-center rounded-md text-lg text-ink hover:bg-paper-sunken disabled:opacity-30 sm:h-9 sm:w-9"
             >
               −
             </button>
             <button
               type="button"
               onClick={() => setZoom(1)}
-              className="min-w-11 rounded-md px-1 text-center text-xs text-ink-muted hover:bg-paper-sunken"
+              className="min-h-11 min-w-14 rounded-md px-1 text-center text-sm text-ink-muted hover:bg-paper-sunken sm:min-h-9"
               title="Asl oʻlchamga qaytarish"
             >
               {Math.round(zoom * 100)}%
@@ -210,7 +276,7 @@ export function FamilyTreeView({
               onClick={() => setZoom((z) => clampZoom(z * ZOOM_STEP))}
               disabled={zoom >= ZOOM_MAX}
               aria-label="Kattalashtirish"
-              className="flex h-8 w-8 items-center justify-center rounded-md text-lg text-ink hover:bg-paper-sunken disabled:opacity-30"
+              className="flex h-11 w-11 items-center justify-center rounded-md text-lg text-ink hover:bg-paper-sunken disabled:opacity-30 sm:h-9 sm:w-9"
             >
               +
             </button>

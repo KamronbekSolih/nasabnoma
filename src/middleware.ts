@@ -45,8 +45,20 @@ export async function middleware(request: NextRequest) {
   // built from local data rather than a real tree_id, so there's nothing
   // here for a signed-out visitor to be gated away from.
   const isDemoRoute = request.nextUrl.pathname.startsWith("/shajara");
+  // The OAuth callback arrives with ?code= and no session cookie yet — the code
+  // has not been exchanged. Without this exemption the middleware would bounce
+  // it to /login and discard the code, so Telegram sign-in would fail every
+  // time, silently, while password sign-in kept working.
+  const isCallbackRoute = request.nextUrl.pathname.startsWith("/auth");
 
-  if (!user && !isAuthRoute && !isResetRoute && !isLandingRoute && !isDemoRoute) {
+  if (
+    !user &&
+    !isAuthRoute &&
+    !isResetRoute &&
+    !isLandingRoute &&
+    !isDemoRoute &&
+    !isCallbackRoute
+  ) {
     const url = request.nextUrl.clone();
     const redirectTarget = url.pathname + url.search;
     url.pathname = "/login";

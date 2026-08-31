@@ -27,7 +27,7 @@ export function JoinAccept({ code }: { code: string }) {
 
   if (error) {
     return (
-      <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-8 text-center shadow-sm">
+      <div className="illuminated w-full max-w-sm rounded-card border border-line-strong bg-surface p-5 text-center sm:p-6">
         <h1 className="text-lg font-semibold text-ink">Qo&apos;shilib bo&apos;lmadi</h1>
         <p className="mt-2 text-sm text-danger">{error}</p>
       </div>
@@ -35,7 +35,7 @@ export function JoinAccept({ code }: { code: string }) {
   }
 
   return (
-    <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-8 text-center shadow-sm">
+    <div className="illuminated w-full max-w-sm rounded-card border border-line-strong bg-surface p-5 text-center sm:p-6">
       <p className="text-sm text-ink-muted">Shajaraga qo&apos;shilmoqdasiz...</p>
     </div>
   );

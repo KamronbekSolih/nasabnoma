@@ -9,7 +9,12 @@ import { isoToDMY } from "@/lib/dates";
 import { personName } from "@/lib/people";
 import { canEditRole, isAdminRole } from "@/lib/roles";
 import { Combobox } from "@/components/ui/Combobox";
-import { buttonPrimary, buttonSecondary } from "@/components/ui/primitives";
+import {
+  buttonPrimary,
+  buttonSecondary,
+  inputClass,
+  Field,
+} from "@/components/ui/primitives";
 import { COUNTRIES } from "@/lib/reference/countries";
 import { UZBEKISTAN, UZBEKISTAN_REGIONS, UZBEKISTAN_REGION_NAMES } from "@/lib/reference/uzbekistan";
 import { MILLATLAR, UZBEK_MILLAT } from "@/lib/reference/millat";
@@ -311,6 +316,7 @@ export function PersonForm({
                 id="birth_date"
                 name="birth_date"
                 type="text"
+                inputMode="numeric"
                 placeholder="kk.oo.yyyy"
                 pattern="\d{2}\.\d{2}\.\d{4}"
                 title="kk.oo.yyyy formatida kiriting, masalan 05.03.1958"
@@ -362,6 +368,7 @@ export function PersonForm({
                 id="death_date"
                 name="death_date"
                 type="text"
+                inputMode="numeric"
                 placeholder="kk.oo.yyyy"
                 pattern="\d{2}\.\d{2}\.\d{4}"
                 title="kk.oo.yyyy formatida kiriting"
@@ -552,7 +559,7 @@ export function PersonForm({
                       ),
                     )
                   }
-                  className="rounded-lg border border-line-strong px-2 py-1 text-sm"
+                  className={inputClass}
                 >
                   <option value="married">Turmush qurgan</option>
                   <option value="divorced">Ajrashgan</option>
@@ -563,7 +570,7 @@ export function PersonForm({
                 <button
                   type="button"
                   onClick={() => setSpouses((prev) => prev.filter((row) => row.id !== s.id))}
-                  className="text-sm text-danger hover:underline"
+                  className="inline-flex min-h-11 items-center rounded-card px-2 text-sm text-danger hover:bg-danger-soft sm:min-h-9"
                 >
                   O&apos;chirish
                 </button>
@@ -609,7 +616,7 @@ export function PersonForm({
                         ),
                       )
                     }
-                    className="rounded-lg border border-line-strong px-2 py-1 text-sm"
+                    className={inputClass}
                   >
                     {familyOptions.map((f) => (
                       <option key={f.id} value={f.id}>
@@ -633,7 +640,7 @@ export function PersonForm({
                       ),
                     )
                   }
-                  className="rounded-lg border border-line-strong px-2 py-1 text-sm"
+                  className={inputClass}
                 >
                   <option value="birth">Tug&apos;ma</option>
                   <option value="adopted">Asrab olingan</option>
@@ -643,7 +650,7 @@ export function PersonForm({
                 <button
                   type="button"
                   onClick={() => setChildren((prev) => prev.filter((row) => row.id !== c.id))}
-                  className="text-sm text-danger hover:underline"
+                  className="inline-flex min-h-11 items-center rounded-card px-2 text-sm text-danger hover:bg-danger-soft sm:min-h-9"
                 >
                   O&apos;chirish
                 </button>
@@ -689,7 +696,7 @@ export function PersonForm({
               type="button"
               onClick={handleDelete}
               disabled={pending}
-              className="text-sm text-danger hover:underline disabled:opacity-50"
+              className="inline-flex min-h-11 items-center rounded-card px-2 text-sm text-danger hover:bg-danger-soft disabled:opacity-50 sm:min-h-9"
             >
               Odamni o&apos;chirish
             </button>
@@ -697,31 +704,6 @@ export function PersonForm({
         </div>
       )}
     </form>
-  );
-}
-
-const inputClass =
-  "rounded-lg border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand disabled:bg-paper-sunken disabled:text-ink-muted";
-
-function Field({
-  label,
-  htmlFor,
-  required,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={htmlFor} className="text-sm font-medium text-ink">
-        {label}
-        {required && <span className="text-danger"> *</span>}
-      </label>
-      {children}
-    </div>
   );
 }
 
