@@ -3,6 +3,7 @@ import { personName } from "@/lib/people";
 import { isoToDMY } from "@/lib/dates";
 import { buttonPrimary, Card, Notice } from "@/components/ui/primitives";
 import { StarRosette } from "@/components/ui/Ornament";
+import { ClaimButton } from "./ClaimButton";
 import type { FamilyGraph } from "@/lib/tree/relations";
 import type { Person } from "@/lib/types";
 
@@ -32,10 +33,15 @@ export function PersonProfile({
   personHref = (id) => `/person/${id}`,
   backHref = "/tree",
   backLabel = "← Shajaraga qaytish",
+  currentUserId = null,
+  isAdmin = false,
 }: {
   person: Person;
   graph: FamilyGraph;
   canEdit: boolean;
+  /** Null on the public demo trees, which have no signed-in user and no claiming. */
+  currentUserId?: string | null;
+  isAdmin?: boolean;
   /** Where a relative's name links to — overridden by read-only demo trees so
    * they stay inside their own namespace (see PersonPanel for the same need). */
   personHref?: (id: string) => string;
@@ -65,6 +71,17 @@ export function PersonProfile({
   ]);
   const clan = [person.millat, person.urug, person.aymoq, person.tarmoq].filter(Boolean);
   const years = lifespan(person);
+
+  // "unclaimed" is only actionable by someone who may edit — migration 022 makes
+  // the database refuse a viewer's claim, so offering the button would be a lie.
+  const claimState =
+    person.claimed_by && person.claimed_by === currentUserId
+      ? ("mine" as const)
+      : person.claimed_by
+        ? ("taken" as const)
+        : canEdit
+          ? ("unclaimed" as const)
+          : null;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6">
@@ -144,6 +161,14 @@ export function PersonProfile({
           <RelationGroup label="Farzandlari" people={children} personHref={personHref} />
         </div>
       </Card>
+
+      {/* Linking an account to a person is only meaningful for the living, and
+          only inside a real (non-demo) tree. */}
+      {currentUserId && !person.is_deceased && claimState && (
+        <Card title="Hisob bogʻlanishi">
+          <ClaimButton personId={person.id} state={claimState} canRevoke={isAdmin} />
+        </Card>
+      )}
 
       {/* Current location is public regardless of details_visible — birthplace isn't:
           where someone lives today is a different disclosure than where they were

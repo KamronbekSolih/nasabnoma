@@ -384,3 +384,15 @@ export async function claimPerson(personId: string): Promise<{ ok: true } | Acti
   revalidatePath(`/person/${personId}`);
   return { ok: true };
 }
+
+/** Admin override: detach a claim someone else made. Authorization lives in the
+ * revoke_claim RPC (migration 022), which checks is_tree_admin. */
+export async function revokeClaim(personId: string): Promise<{ ok: true } | ActionError> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("revoke_claim", { p_person_id: personId });
+  if (error) return { error: error.message };
+
+  revalidatePath("/tree");
+  revalidatePath(`/person/${personId}`);
+  return { ok: true };
+}

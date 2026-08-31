@@ -5,6 +5,7 @@ import "./globals.css";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentTree } from "@/lib/tree/current";
+import { getMyProfile, displayName } from "@/lib/profile";
 
 // Both faces are loaded with the Cyrillic subset: the audience reads Uzbek in Latin
 // and Cyrillic and Russian, and a missing subset shows as tofu boxes for half of them.
@@ -47,7 +48,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const tree = user ? await getCurrentTree() : null;
+  // Own email is fine to show back to yourself when no name is set yet; it is
+  // never used for anyone else (see displayName()).
+  const [tree, profile] = user
+    ? await Promise.all([getCurrentTree(), getMyProfile()])
+    : [null, null];
 
   return (
     <html
@@ -55,7 +60,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${inter.variable} ${lora.variable} ${cormorant.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col bg-paper">
-        <AppHeader userEmail={user?.email ?? null} role={tree?.role ?? null} />
+        <AppHeader
+          signedIn={!!user}
+          displayName={user ? displayName(profile, user.email ?? null) : null}
+          role={tree?.role ?? null}
+        />
         {children}
         <Analytics />
       </body>

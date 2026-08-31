@@ -9,16 +9,21 @@ import { canEditRole, isAdminRole } from "@/lib/roles";
 import type { TreeRole } from "@/lib/types";
 
 export function AppHeader({
-  userEmail,
+  signedIn,
+  displayName,
   role,
 }: {
-  userEmail: string | null;
+  /** The sentinel is the session itself, never the email. Telegram sign-in
+   * returns no email at all, and keying visibility off `userEmail` used to hide
+   * the entire header — nav and sign-out included — from anyone without one. */
+  signedIn: boolean;
+  displayName: string | null;
   role: TreeRole | null;
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  if (!userEmail || pathname.startsWith("/login") || pathname.startsWith("/reset-password")) {
+  if (!signedIn || pathname.startsWith("/login") || pathname.startsWith("/reset-password")) {
     return null;
   }
 
@@ -27,6 +32,7 @@ export function AppHeader({
     { href: "/world", label: "Dunyo boʻylab" },
     ...(canEditRole(role) ? [{ href: "/person/new", label: "Odam qoʻshish" }] : []),
     ...(isAdminRole(role) ? [{ href: "/duplicates", label: "Takrorlar" }] : []),
+    { href: "/profile", label: "Profilim" },
     { href: "/settings", label: "Sozlamalar" },
   ];
 
@@ -50,7 +56,7 @@ export function AppHeader({
             </NavLink>
           ))}
           <span className="ml-2 max-w-[14rem] truncate text-sm text-ink-faint">
-            {userEmail}
+            {displayName}
           </span>
           <SignOutButton />
         </nav>
@@ -90,7 +96,7 @@ export function AppHeader({
             </Link>
           ))}
           <div className="mt-1 flex items-center justify-between border-t border-line px-3 pt-3 pb-1">
-            <span className="truncate text-sm text-ink-faint">{userEmail}</span>
+            <span className="truncate text-base text-ink-faint">{displayName}</span>
             <SignOutButton />
           </div>
         </nav>

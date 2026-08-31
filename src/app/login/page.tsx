@@ -17,6 +17,7 @@ function LoginForm() {
   const [mode, setMode] = useState<Mode>(
     searchParams.get("mode") === "signup" ? "signup" : "signin",
   );
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +38,13 @@ function LoginForm() {
       router.push(destination);
       router.refresh();
     } else {
-      const { error, data } = await supabase.auth.signUp({ email, password });
+      // full_name rides along in user metadata, which the handle_new_user
+      // trigger reads to create the profile row.
+      const { error, data } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: fullName.trim() } },
+      });
       setLoading(false);
       if (error) return setError(error.message);
       if (data.session) {
@@ -98,6 +105,25 @@ function LoginForm() {
         </div>
 
         <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-4">
+          {mode === "signup" && (
+            <Field
+              label="Toʻliq ismingiz"
+              htmlFor="full_name"
+              hint="Qarindoshlaringiz sizni shu ism bilan koʻradi."
+            >
+              <input
+                id="full_name"
+                required
+                autoComplete="name"
+                maxLength={100}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Masalan: Kamronbek Solihov"
+                className={inputClass}
+              />
+            </Field>
+          )}
+
           <Field label="Email" htmlFor="email">
             <input
               id="email"

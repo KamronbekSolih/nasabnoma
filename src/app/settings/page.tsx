@@ -6,6 +6,7 @@ import { InviteCard } from "@/components/settings/InviteCard";
 import { TreeSwitcher } from "@/components/settings/TreeSwitcher";
 import { MembersCard } from "@/components/settings/MembersCard";
 import { AddTreeCard } from "@/components/settings/AddTreeCard";
+import { getProfilesByIds, displayName } from "@/lib/profile";
 import type { TreeMemberRow } from "@/lib/types";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -32,6 +33,13 @@ export default async function SettingsPage() {
   if (!treeRow) redirect("/onboarding");
   const memberRows = (members as TreeMemberRow[]) ?? [];
 
+  // Real names instead of "Foydalanuvchi a1b2c3d4". A separate query rather than
+  // an embed — see getProfilesByIds() for why PostgREST cannot join these.
+  const profiles = await getProfilesByIds(memberRows.map((m) => m.user_id));
+  const memberNames = Object.fromEntries(
+    memberRows.map((m) => [m.user_id, displayName(profiles.get(m.user_id))]),
+  );
+
   return (
     <main className="mx-auto flex max-w-2xl flex-1 flex-col gap-6 p-6">
       <h1 className="text-xl font-semibold text-ink">Sozlamalar</h1>
@@ -48,7 +56,11 @@ export default async function SettingsPage() {
       {isAdmin && (
         <>
           <InviteCard code={treeRow.invite_code} />
-          <MembersCard members={memberRows} currentUserId={auth.user?.id ?? ""} />
+          <MembersCard
+            members={memberRows}
+            currentUserId={auth.user?.id ?? ""}
+            names={memberNames}
+          />
           <Link
             href="/duplicates"
             className="rounded-xl border border-line bg-surface p-5 transition-colors hover:bg-paper"

@@ -22,9 +22,12 @@ const ROLE_HELP: Record<TreeRole, string> = {
 export function MembersCard({
   members,
   currentUserId,
+  names,
 }: {
   members: TreeMemberRow[];
   currentUserId: string;
+  /** user_id -> display name, resolved from profiles by the page. */
+  names: Record<string, string>;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -58,7 +61,8 @@ export function MembersCard({
             <div key={m.user_id} className="flex flex-wrap items-center gap-3 py-2.5">
               <div className="flex-1">
                 <p className="text-sm text-ink">
-                  {isSelf ? "Siz" : `Foydalanuvchi ${m.user_id.slice(0, 8)}`}
+                  {names[m.user_id] ?? "Foydalanuvchi"}
+                  {isSelf && <span className="text-ink-faint"> (siz)</span>}
                 </p>
                 <p className="text-xs text-ink-faint">{ROLE_HELP[m.role]}</p>
               </div>
@@ -74,7 +78,7 @@ export function MembersCard({
                     onChange={(e) =>
                       run(() => setMemberRole(m.user_id, e.target.value as TreeRole))
                     }
-                    className="rounded-lg border border-line-strong px-2 py-1 text-sm"
+                    className="min-h-11 rounded-card border border-line-strong bg-surface px-2 text-base sm:min-h-9 sm:text-sm"
                   >
                     <option value="admin">{ROLE_LABEL.admin}</option>
                     <option value="member">{ROLE_LABEL.member}</option>
@@ -87,7 +91,7 @@ export function MembersCard({
                       if (!confirm("Bu a'zoni shajaradan chiqarasizmi?")) return;
                       run(() => removeMember(m.user_id));
                     }}
-                    className="text-xs text-danger hover:underline disabled:opacity-50"
+                    className="inline-flex min-h-11 items-center rounded-card px-2 text-sm text-danger hover:bg-danger-soft disabled:opacity-50 sm:min-h-9"
                   >
                     chiqarish
                   </button>
