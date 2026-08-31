@@ -84,6 +84,15 @@ export function OnboardingForm() {
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="masalan, a1b2c3d4e5f6"
+              // Invite codes are always lowercase hex; without this, mobile
+              // browsers auto-capitalize the first character typed, and a
+              // correctly-typed code gets rejected as "not found" — the
+              // server now also folds case defensively (migration 016), but
+              // stopping the browser from mangling it in the first place is
+              // the better fix.
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
               className="rounded-lg border border-line-strong px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
             />
           </div>
