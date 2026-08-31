@@ -50,6 +50,10 @@ export async function middleware(request: NextRequest) {
   // it to /login and discard the code, so Telegram sign-in would fail every
   // time, silently, while password sign-in kept working.
   const isCallbackRoute = request.nextUrl.pathname.startsWith("/auth");
+  // Supabase fetches these two unauthenticated, server-to-server, to discover
+  // Telegram's endpoints and signing keys. Gating them would redirect Supabase
+  // to /login and break sign-in with a misleading error.
+  const isOidcShimRoute = request.nextUrl.pathname.startsWith("/api/telegram-oidc");
 
   if (
     !user &&
@@ -57,7 +61,8 @@ export async function middleware(request: NextRequest) {
     !isResetRoute &&
     !isLandingRoute &&
     !isDemoRoute &&
-    !isCallbackRoute
+    !isCallbackRoute &&
+    !isOidcShimRoute
   ) {
     const url = request.nextUrl.clone();
     const redirectTarget = url.pathname + url.search;
