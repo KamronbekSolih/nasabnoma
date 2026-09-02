@@ -63,6 +63,52 @@ export async function uploadAvatar(
   return data.publicUrl;
 }
 
+/**
+ * Copies an external image (a Telegram userpic, at the moment) into our own
+ * storage bucket and returns the new public URL. Server-safe — unlike
+ * uploadAvatar above, this never touches `document`/`createImageBitmap`/canvas,
+ * so it works from a server action, not just the browser.
+ *
+ * Deliberately a copy, not a hotlink: Telegram's userpic URL always resolves to
+ * whatever that account's *current* photo is, so storing the URL itself in
+ * `people.photo_url` would make it silently change (or vanish) if the relative
+ * later changes or removes their Telegram photo — including for people they
+ * don't manage, since claiming is between the account and the person record,
+ * not something the photo's owner reviews per change. Copying the bytes now
+ * makes the shajara photo a permanent, independent choice at the moment of
+ * claiming, same as an uploaded one.
+ */
+export async function uploadAvatarFromUrl(
+  supabase: SupabaseClient,
+  ownerId: string,
+  sourceUrl: string,
+): Promise<string> {
+  const res = await fetch(sourceUrl);
+  if (!res.ok) throw new Error(`Rasmni yuklab boʻlmadi (${res.status}).`);
+
+  const contentType = res.headers.get("content-type") ?? "image/jpeg";
+  if (!contentType.startsWith("image/")) {
+    throw new Error("Manba rasm emas.");
+  }
+
+  const bytes = await res.arrayBuffer();
+  if (bytes.byteLength > MAX_UPLOAD_BYTES) {
+    throw new Error("Rasm juda katta.");
+  }
+
+  const ext = contentType === "image/png" ? "png" : "jpg";
+  const path = `${ownerId}/${crypto.randomUUID()}.${ext}`;
+
+  const { error } = await supabase.storage.from(BUCKET).upload(path, bytes, {
+    contentType,
+    upsert: true,
+  });
+  if (error) throw new Error(error.message);
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
 /** Best-effort cleanup of a replaced photo. Uploads are keyed by random UUID, so a
  * superseded file is unreachable forever otherwise — it would just consume quota. */
 export async function deleteAvatarByUrl(supabase: SupabaseClient, url: string): Promise<void> {

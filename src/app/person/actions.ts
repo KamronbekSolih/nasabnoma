@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canEditRole, getCurrentTree, isAdminRole } from "@/lib/tree/current";
 import { dmyToISO } from "@/lib/dates";
 import { geocodeCurrentLocation } from "@/lib/geocode";
+import { uploadAvatarFromUrl } from "@/lib/supabase/storage";
 import type { ChildRelation, RelationKind, TreeMember } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -395,7 +396,7 @@ export async function claimPerson(personId: string): Promise<{ ok: true } | Acti
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("telegram_username")
+      .select("telegram_username, avatar_url")
       .eq("id", user.id)
       .maybeSingle();
     if (profile?.telegram_username) {
@@ -404,6 +405,24 @@ export async function claimPerson(personId: string): Promise<{ ok: true } | Acti
         .update({ telegram: profile.telegram_username })
         .eq("id", personId)
         .is("telegram", null);
+    }
+
+    // Same fill-only-if-blank rule as the Telegram handle above, and the same
+    // reasoning for why it's not fatal if it fails: the claim itself already
+    // succeeded, and a photo is a nice-to-have, not the point of claiming.
+    // Copies the bytes into our own storage rather than storing Telegram's
+    // URL directly — see uploadAvatarFromUrl's own comment for why.
+    if (profile?.avatar_url) {
+      try {
+        const photoUrl = await uploadAvatarFromUrl(supabase, user.id, profile.avatar_url);
+        await supabase
+          .from("people")
+          .update({ photo_url: photoUrl })
+          .eq("id", personId)
+          .is("photo_url", null);
+      } catch {
+        // Ignored — see comment above.
+      }
     }
   }
 
