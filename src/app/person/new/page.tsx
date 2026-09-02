@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { canEditRole, getCurrentTree } from "@/lib/tree/current";
 import { loadTreeData } from "@/lib/tree/load";
 import { PersonForm, type RelationContext, type InheritedClan } from "@/components/people/PersonForm";
@@ -15,7 +16,15 @@ export default async function NewPersonPage({
   if (!canEditRole(tree.role)) redirect("/tree");
 
   const { relation, of } = await searchParams;
-  const { people, graph } = await loadTreeData(tree);
+  const supabase = await createClient();
+  const [{ people, graph }, { data: { user } }] = await Promise.all([
+    loadTreeData(tree),
+    supabase.auth.getUser(),
+  ]);
+  // Offer to self-claim the new record only while this account hasn't already
+  // identified as someone else in this tree — see PersonForm's own comment on
+  // the "Bu menman" checkbox for why.
+  const alreadyClaimed = user ? people.some((p) => p.claimed_by === user.id) : true;
 
   let relationContext: RelationContext | undefined;
   let initialFatherId: string | undefined;
@@ -71,6 +80,7 @@ export default async function NewPersonPage({
         initialFatherId={initialFatherId}
         initialMotherId={initialMotherId}
         inheritedClan={inheritedClan}
+        alreadyClaimed={alreadyClaimed}
       />
     </main>
   );

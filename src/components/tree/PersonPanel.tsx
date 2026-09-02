@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { detachRelative } from "@/app/person/actions";
+import { detachRelative, claimPerson } from "@/app/person/actions";
 import { personName } from "@/lib/people";
+import { buttonSecondary } from "@/components/ui/primitives";
 import type { FamilyGraph } from "@/lib/tree/relations";
 import type { Person, RelationKind } from "@/lib/types";
 
@@ -15,6 +16,8 @@ export function PersonPanel({
   onClose,
   onFocus,
   personHref = (id) => `/person/${id}`,
+  currentUserId = null,
+  myClaimedPersonId = null,
 }: {
   person: Person;
   graph: FamilyGraph;
@@ -25,10 +28,27 @@ export function PersonPanel({
    * — a read-only demo tree overrides this to stay inside its own namespace,
    * since demo people don't exist in the database `/person/[id]` reads from. */
   personHref?: (id: string) => string;
+  /** Null on the read-only demo trees, which have no signed-in user. */
+  currentUserId?: string | null;
+  /** The person (if any) this account already claimed in this tree. As long
+   * as this is null, "Bu menman" keeps offering itself on every unclaimed
+   * card — the first click here is meant to be the fast path to identifying
+   * yourself, without a trip to the full profile page. Once set, the nudge
+   * stops: you've already said who you are. */
+  myClaimedPersonId?: string | null;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const canClaim =
+    !!currentUserId &&
+    canEdit &&
+    !person.is_deceased &&
+    !person.claimed_by &&
+    !myClaimedPersonId;
+
+  const handleClaim = () => run(() => claimPerson(person.id));
 
   const father = graph.fatherOf(person.id);
   const mother = graph.motherOf(person.id);
@@ -104,6 +124,20 @@ export function PersonPanel({
           ✕
         </button>
       </div>
+
+      {canClaim && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-brand-line bg-brand-soft px-3 py-2">
+          <p className="text-sm text-ink">Shajarada oʻzingizni topdingizmi?</p>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={handleClaim}
+            className={`${buttonSecondary} min-h-9 shrink-0 px-3 py-1 text-sm sm:min-h-8`}
+          >
+            {pending ? "Bajarilmoqda..." : "Bu menman"}
+          </button>
+        </div>
+      )}
 
       {!person.details_visible && (
         <p className="rounded-lg border border-gold-line bg-gold-soft px-3 py-2 text-xs text-notice">

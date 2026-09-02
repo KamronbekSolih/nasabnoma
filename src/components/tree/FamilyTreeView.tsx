@@ -38,6 +38,8 @@ export function FamilyTreeView({
   familyChildren,
   role,
   personHref,
+  currentUserId = null,
+  myClaimedPersonId = null,
 }: {
   people: Person[];
   families: Family[];
@@ -46,6 +48,10 @@ export function FamilyTreeView({
   /** Forwarded to PersonPanel — overridden by read-only demo trees so relative
    * links stay inside their own namespace instead of the real /person/[id]. */
   personHref?: (id: string) => string;
+  /** Both forwarded to PersonPanel for the "Bu menman" nudge — null on the
+   * read-only demo trees, which have no signed-in user and no claiming. */
+  currentUserId?: string | null;
+  myClaimedPersonId?: string | null;
 }) {
   const graph = useMemo(
     () => new FamilyGraph(people, families, familyChildren),
@@ -311,6 +317,8 @@ export function FamilyTreeView({
           onClose={() => setSelectedId(null)}
           onFocus={(id) => setRootId(id)}
           personHref={personHref}
+          currentUserId={currentUserId}
+          myClaimedPersonId={myClaimedPersonId}
         />
       )}
     </div>

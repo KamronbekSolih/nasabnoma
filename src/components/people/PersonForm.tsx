@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { savePerson, deletePerson, attachRelative } from "@/app/person/actions";
+import { savePerson, deletePerson, attachRelative, claimPerson } from "@/app/person/actions";
 import { createClient } from "@/lib/supabase/client";
 import { uploadAvatar, deleteAvatarByUrl } from "@/lib/supabase/storage";
 import { isoToDMY } from "@/lib/dates";
@@ -72,6 +72,7 @@ export function PersonForm({
   familyOptions,
   relationContext,
   inheritedClan,
+  alreadyClaimed = true,
 }: {
   person?: Person;
   people: Person[];
@@ -85,6 +86,12 @@ export function PersonForm({
   familyOptions?: { id: string; label: string }[];
   relationContext?: RelationContext;
   inheritedClan?: InheritedClan;
+  /** Whether this account has already identified as someone else in this
+   * tree. While it hasn't, creating a new person offers a "Bu menman"
+   * checkbox — the fast path for "add yourself first" instead of a separate
+   * trip to that person's page afterward. Defaults true (no checkbox) so
+   * editing an existing person, which never passes this prop, is unaffected. */
+  alreadyClaimed?: boolean;
 }) {
   const router = useRouter();
   const canEdit = canEditRole(role);
@@ -92,6 +99,11 @@ export function PersonForm({
   const detailsHidden = person ? !person.details_visible : false;
 
   const [isDeceased, setIsDeceased] = useState(person?.is_deceased ?? false);
+  // Only ever offered when creating (not editing) and not yet claimed elsewhere
+  // — see the `alreadyClaimed` prop doc. Also makes no sense once "vafot etgan"
+  // is ticked, so it's hidden (not just disabled) the moment that happens.
+  const [claimSelf, setClaimSelf] = useState(false);
+  const canOfferSelfClaim = !person && !alreadyClaimed;
   const [spouses, setSpouses] = useState<SpouseRow[]>(initialSpouses ?? []);
   const [children, setChildren] = useState<ChildRow[]>(initialChildren ?? []);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -189,6 +201,17 @@ export function PersonForm({
           setError(linkResult.error);
           return;
         }
+      }
+
+      // Self-claim after creation, not before: claimPerson needs a real row to
+      // point at. Deliberately not fatal if it fails (e.g. someone else claimed
+      // in the few seconds since the page loaded) — the person was still
+      // created successfully, and the ordinary "Bu menman" button on their
+      // page covers the retry.
+      if (canOfferSelfClaim && claimSelf) {
+        // Return-value errors (e.g. a race with someone else's claim) are
+        // deliberately swallowed here, not surfaced — see the comment above.
+        await claimPerson(result.id);
       }
 
       // Land on the saved person so the change is immediately visible, rather than
@@ -361,6 +384,21 @@ export function PersonForm({
               Vafot etgan
             </label>
           </div>
+
+          {canOfferSelfClaim && !isDeceased && (
+            <div className="flex items-center gap-2 rounded-lg border border-brand-line bg-brand-soft px-3 py-2">
+              <input
+                id="claim_self"
+                type="checkbox"
+                checked={claimSelf}
+                onChange={(e) => setClaimSelf(e.target.checked)}
+                className="h-4 w-4 rounded border-line-strong"
+              />
+              <label htmlFor="claim_self" className="text-sm text-ink">
+                Bu menman — hisobimni shu yozuvga bogʻlash
+              </label>
+            </div>
+          )}
 
           {isDeceased && (
             <Field label="Vafot sanasi (kk.oo.yyyy)" htmlFor="death_date">
