@@ -75,13 +75,17 @@ export function AppHeader({
           aria-label="Dunyo boʻylab"
           className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-muted hover:bg-paper-sunken md:hidden"
         >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.4" />
-            <path
-              d="M3 10h14M10 3c2.4 2 2.4 12 0 14M10 3c-2.4 2-2.4 12 0 14"
-              stroke="currentColor"
-              strokeWidth="1.2"
-            />
+          {/* A sphere with landmasses reads as "world" at a glance, unlike the
+              latitude/longitude wireframe this replaced — that one, alone and
+              unlabeled next to the menu button, was easy to mistake for a
+              settings gear or a target. */}
+          <svg width="22" height="22" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.3" />
+            <g fill="currentColor">
+              <ellipse cx="8.1" cy="7.7" rx="3.2" ry="2.2" transform="rotate(-20 8.1 7.7)" />
+              <ellipse cx="13" cy="12.4" rx="2.2" ry="1.6" transform="rotate(20 13 12.4)" />
+              <ellipse cx="6.8" cy="13.6" rx="1.3" ry="0.9" transform="rotate(8 6.8 13.6)" />
+            </g>
           </svg>
         </Link>
 
