@@ -3,8 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { attachRelative, detachRelative } from "@/app/person/actions";
-import { RelativePicker } from "./RelativePicker";
+import { detachRelative } from "@/app/person/actions";
 import { personName } from "@/lib/people";
 import type { FamilyGraph } from "@/lib/tree/relations";
 import type { Person, RelationKind } from "@/lib/types";
@@ -28,7 +27,6 @@ export function PersonPanel({
   personHref?: (id: string) => string;
 }) {
   const router = useRouter();
-  const [addingRelation, setAddingRelation] = useState<RelationKind | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,16 +34,6 @@ export function PersonPanel({
   const mother = graph.motherOf(person.id);
   const spouses = graph.spousesOf(person.id);
   const children = graph.childrenOf(person.id);
-
-  const excluded = new Set([
-    person.id,
-    ...children.map((c) => c.id),
-    ...spouses.map((s) => s.person.id),
-  ]);
-  const fatherCandidates = graph.people.filter((p) => p.gender === "male" && p.id !== person.id);
-  const motherCandidates = graph.people.filter((p) => p.gender === "female" && p.id !== person.id);
-  const childCandidates = graph.people.filter((p) => !excluded.has(p.id));
-  const spouseCandidates = graph.people.filter((p) => !excluded.has(p.id));
 
   async function run(fn: () => Promise<{ ok: true } | { error: string }>) {
     setPending(true);
@@ -56,12 +44,8 @@ export function PersonPanel({
       setError(result.error);
       return;
     }
-    setAddingRelation(null);
     router.refresh();
   }
-
-  const handlePick = (relation: RelationKind, otherId: string) =>
-    run(() => attachRelative(person.id, relation, otherId));
 
   const handleRemove = (relation: RelationKind, otherId: string) => {
     if (!confirm("Bog'lanishni olib tashlaysizmi?")) return;
@@ -134,13 +118,8 @@ export function PersonPanel({
         label="Otasi"
         existing={father}
         addLabel="+ Ota qo'shish"
-        candidates={fatherCandidates}
-        isAdding={addingRelation === "father"}
         pending={pending}
         canEdit={canEdit}
-        onStartAdd={() => setAddingRelation("father")}
-        onCancelAdd={() => setAddingRelation(null)}
-        onPick={(id) => handlePick("father", id)}
         onRemove={(id) => handleRemove("father", id)}
         createHref={`/person/new?relation=father&of=${person.id}`}
         personHref={personHref}
@@ -149,13 +128,8 @@ export function PersonPanel({
         label="Onasi"
         existing={mother}
         addLabel="+ Ona qo'shish"
-        candidates={motherCandidates}
-        isAdding={addingRelation === "mother"}
         pending={pending}
         canEdit={canEdit}
-        onStartAdd={() => setAddingRelation("mother")}
-        onCancelAdd={() => setAddingRelation(null)}
-        onPick={(id) => handlePick("mother", id)}
         onRemove={(id) => handleRemove("mother", id)}
         createHref={`/person/new?relation=mother&of=${person.id}`}
         personHref={personHref}
@@ -169,13 +143,8 @@ export function PersonPanel({
           note: family.relation_type === "divorced" ? "ajrashgan" : undefined,
         }))}
         addLabel="+ Turmush o'rtog'i qo'shish"
-        candidates={spouseCandidates}
-        isAdding={addingRelation === "spouse"}
         pending={pending}
         canEdit={canEdit}
-        onStartAdd={() => setAddingRelation("spouse")}
-        onCancelAdd={() => setAddingRelation(null)}
-        onPick={(id) => handlePick("spouse", id)}
         onRemove={(id) => handleRemove("spouse", id)}
         createHref={`/person/new?relation=spouse&of=${person.id}`}
         personHref={personHref}
@@ -185,13 +154,8 @@ export function PersonPanel({
         label="Farzandlari"
         items={children.map((c) => ({ id: c.id, name: personName(c) }))}
         addLabel="+ Farzand qo'shish"
-        candidates={childCandidates}
-        isAdding={addingRelation === "child"}
         pending={pending}
         canEdit={canEdit}
-        onStartAdd={() => setAddingRelation("child")}
-        onCancelAdd={() => setAddingRelation(null)}
-        onPick={(id) => handlePick("child", id)}
         onRemove={(id) => handleRemove("child", id)}
         createHref={`/person/new?relation=child&of=${person.id}`}
         personHref={personHref}
@@ -200,17 +164,17 @@ export function PersonPanel({
   );
 }
 
+// Adding a relative used to open an inline search-existing-or-create picker
+// here (RelativePicker). That extra step is gone by request — "+ X qo'shish"
+// now goes straight to the create-person window, which is the only place a
+// relative gets added from. Nothing about *removing* a wrong link changed.
+
 function RelationSlot({
   label,
   existing,
   addLabel,
-  candidates,
-  isAdding,
   pending,
   canEdit,
-  onStartAdd,
-  onCancelAdd,
-  onPick,
   onRemove,
   createHref,
   personHref,
@@ -218,13 +182,8 @@ function RelationSlot({
   label: string;
   existing?: Person;
   addLabel: string;
-  candidates: Person[];
-  isAdding: boolean;
   pending: boolean;
   canEdit: boolean;
-  onStartAdd: () => void;
-  onCancelAdd: () => void;
-  onPick: (id: string) => void;
   onRemove: (id: string) => void;
   createHref: string;
   personHref: (id: string) => string;
@@ -248,18 +207,10 @@ function RelationSlot({
             </button>
           )}
         </div>
-      ) : isAdding ? (
-        <RelativePicker
-          candidates={candidates}
-          pending={pending}
-          onSelect={onPick}
-          onCancel={onCancelAdd}
-          createHref={createHref}
-        />
       ) : canEdit ? (
-        <button type="button" onClick={onStartAdd} className="inline-flex min-h-11 items-center rounded-card px-2 text-sm text-brand hover:bg-brand-soft sm:min-h-8">
+        <Link href={createHref} className="inline-flex min-h-11 items-center rounded-card px-2 text-sm text-brand hover:bg-brand-soft sm:min-h-8">
           {addLabel}
-        </button>
+        </Link>
       ) : (
         <p className="text-sm text-ink-faint">—</p>
       )}
@@ -271,13 +222,8 @@ function RelationList({
   label,
   items,
   addLabel,
-  candidates,
-  isAdding,
   pending,
   canEdit,
-  onStartAdd,
-  onCancelAdd,
-  onPick,
   onRemove,
   createHref,
   personHref,
@@ -285,13 +231,8 @@ function RelationList({
   label: string;
   items: { id: string; name: string; note?: string }[];
   addLabel: string;
-  candidates: Person[];
-  isAdding: boolean;
   pending: boolean;
   canEdit: boolean;
-  onStartAdd: () => void;
-  onCancelAdd: () => void;
-  onPick: (id: string) => void;
   onRemove: (id: string) => void;
   createHref: string;
   personHref: (id: string) => string;
@@ -318,25 +259,14 @@ function RelationList({
             )}
           </div>
         ))}
-        {items.length === 0 && !isAdding && <p className="text-sm text-ink-faint">—</p>}
-        {isAdding ? (
-          <RelativePicker
-            candidates={candidates}
-            pending={pending}
-            onSelect={onPick}
-            onCancel={onCancelAdd}
-            createHref={createHref}
-          />
-        ) : (
-          canEdit && (
-            <button
-              type="button"
-              onClick={onStartAdd}
-              className="inline-flex min-h-11 items-center self-start rounded-card px-2 text-sm text-brand hover:bg-brand-soft sm:min-h-8"
-            >
-              {addLabel}
-            </button>
-          )
+        {items.length === 0 && <p className="text-sm text-ink-faint">—</p>}
+        {canEdit && (
+          <Link
+            href={createHref}
+            className="inline-flex min-h-11 items-center self-start rounded-card px-2 text-sm text-brand hover:bg-brand-soft sm:min-h-8"
+          >
+            {addLabel}
+          </Link>
         )}
       </div>
     </div>

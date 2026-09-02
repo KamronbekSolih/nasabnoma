@@ -40,7 +40,13 @@ export function AppHeader({
     <header className="sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
         <Link href="/tree" className="flex items-center gap-2">
-          <Image src="/brand/icon.png" alt="" width={28} height={28} className="rounded-full" />
+          <Image
+            src="/brand/icon.png"
+            alt=""
+            width={40}
+            height={40}
+            className="h-9 w-9 rounded-full md:h-7 md:w-7"
+          />
           {/* Two-toned to match the mark itself: gold numeral, navy word. */}
           <span className="font-display text-lg font-semibold tracking-tight">
             <span className="text-brand">7</span>

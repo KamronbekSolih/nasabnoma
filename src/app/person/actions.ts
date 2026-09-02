@@ -94,7 +94,10 @@ export async function savePerson(formData: FormData): Promise<{ id: string } | A
     birth_date_approx: (formData.get("birth_date_approx") as string)?.trim() || null,
     death_date: dmyToISO(formData.get("death_date") as string),
     is_deceased: formData.get("is_deceased") === "on",
-    visibility: formData.get("visibility") === "public" ? "public" : "family",
+    // Open by default — an unselected/missing field (e.g. a future API caller
+    // that doesn't set one) should read as "visible to the family", not the
+    // more restrictive setting, matching the form's own default option.
+    visibility: formData.get("visibility") === "family" ? "family" : "public",
     birth_country: (formData.get("birth_country") as string)?.trim() || null,
     birth_region: (formData.get("birth_region") as string)?.trim() || null,
     birth_district: (formData.get("birth_district") as string)?.trim() || null,
@@ -379,6 +382,30 @@ export async function claimPerson(personId: string): Promise<{ ok: true } | Acti
   const supabase = await createClient();
   const { error } = await supabase.rpc("claim_person", { p_person_id: personId });
   if (error) return { error: error.message };
+
+  // If this account signed in through Telegram, carry that handle onto the
+  // person record's own contact field — it's the one place a relative
+  // actually looks to reach someone. Only fills a blank: a person who already
+  // has a telegram handle typed in (their own, or someone else's, before this
+  // account claimed them) keeps whatever is there rather than being
+  // silently overwritten by whoever happens to claim them.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("telegram_username")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profile?.telegram_username) {
+      await supabase
+        .from("people")
+        .update({ telegram: profile.telegram_username })
+        .eq("id", personId)
+        .is("telegram", null);
+    }
+  }
 
   revalidatePath("/tree");
   revalidatePath(`/person/${personId}`);

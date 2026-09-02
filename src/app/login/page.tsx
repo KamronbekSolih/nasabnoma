@@ -22,7 +22,8 @@ function LoginForm() {
   const [mode, setMode] = useState<Mode>(
     searchParams.get("mode") === "signup" ? "signup" : "signin",
   );
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   // The OAuth callback route reports failures by redirecting here with ?error=.
@@ -67,11 +68,13 @@ function LoginForm() {
       router.refresh();
     } else {
       // full_name rides along in user metadata, which the handle_new_user
-      // trigger reads to create the profile row.
+      // trigger reads to create the profile row. Collected as two fields for a
+      // cleaner form, joined back into the one string the trigger expects.
+      const full_name = `${firstName.trim()} ${lastName.trim()}`.trim();
       const { error, data } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName.trim() } },
+        options: { data: { full_name } },
       });
       setLoading(false);
       if (error) return setError(error.message);
@@ -153,22 +156,35 @@ function LoginForm() {
 
         <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-4">
           {mode === "signup" && (
-            <Field
-              label="Toʻliq ismingiz"
-              htmlFor="full_name"
-              hint="Qarindoshlaringiz sizni shu ism bilan koʻradi."
-            >
-              <input
-                id="full_name"
-                required
-                autoComplete="name"
-                maxLength={100}
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Masalan: Kamronbek Solihov"
-                className={inputClass}
-              />
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Ism" htmlFor="first_name">
+                <input
+                  id="first_name"
+                  required
+                  autoComplete="given-name"
+                  maxLength={50}
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="Kamronbek"
+                  className={inputClass}
+                />
+              </Field>
+              <Field label="Familiya" htmlFor="last_name">
+                <input
+                  id="last_name"
+                  required
+                  autoComplete="family-name"
+                  maxLength={50}
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Solihov"
+                  className={inputClass}
+                />
+              </Field>
+              <p className="col-span-2 -mt-2 text-xs text-ink-faint">
+                Qarindoshlaringiz sizni shu ism bilan koʻradi.
+              </p>
+            </div>
           )}
 
           <Field label="Email" htmlFor="email">

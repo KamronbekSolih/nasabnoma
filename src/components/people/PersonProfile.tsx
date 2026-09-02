@@ -35,6 +35,7 @@ export function PersonProfile({
   backLabel = "← Shajaraga qaytish",
   currentUserId = null,
   isAdmin = false,
+  embedded = false,
 }: {
   person: Person;
   graph: FamilyGraph;
@@ -47,6 +48,10 @@ export function PersonProfile({
   personHref?: (id: string) => string;
   backHref?: string;
   backLabel?: string;
+  /** Set when rendered inside /profile rather than as its own /person/[id]
+   * page — the host page already owns the outer width/padding and its own
+   * back link, so this drops both instead of nesting them. */
+  embedded?: boolean;
 }) {
   const father = graph.fatherOf(person.id);
   const mother = graph.motherOf(person.id);
@@ -84,7 +89,13 @@ export function PersonProfile({
           : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6">
+    <div
+      className={
+        embedded
+          ? "flex flex-col gap-5"
+          : "mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6"
+      }
+    >
       {/* Identity band */}
       <div className="illuminated relative overflow-hidden rounded-card border border-line-strong bg-surface">
         <div className="relative flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:gap-5 sm:p-6">
@@ -204,9 +215,11 @@ export function PersonProfile({
         </Card>
       )}
 
-      <Link href={backHref} className="text-sm text-brand hover:underline">
-        {backLabel}
-      </Link>
+      {!embedded && (
+        <Link href={backHref} className="text-sm text-brand hover:underline">
+          {backLabel}
+        </Link>
+      )}
     </div>
   );
 }

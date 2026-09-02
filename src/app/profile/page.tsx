@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentTree } from "@/lib/tree/current";
+import { getCurrentTree, canEditRole, isAdminRole } from "@/lib/tree/current";
+import { loadTreeData } from "@/lib/tree/load";
 import { getMyProfile } from "@/lib/profile";
-import { personName } from "@/lib/people";
 import { ProfileForm } from "@/components/profile/ProfileForm";
 import { LinkedAccounts } from "@/components/profile/LinkedAccounts";
+import { PersonProfile } from "@/components/people/PersonProfile";
 import { Card, Notice } from "@/components/ui/primitives";
+import type { FamilyGraph } from "@/lib/tree/relations";
 import type { Person } from "@/lib/types";
 
 export const metadata = { title: "Profilim — 7avlod" };
@@ -20,17 +22,27 @@ export default async function ProfilePage() {
 
   const [profile, tree] = await Promise.all([getMyProfile(), getCurrentTree()]);
 
-  // Which person in the current tree this account is linked to, if any.
+  // Which person in the current tree this account is linked to, if any — and
+  // if so, its full graph, so the relatives/location/bio cards below can
+  // render the same way /person/[id] does rather than repeating that logic.
   let claimed: Person | null = null;
+  let graph: FamilyGraph | null = null;
   if (tree) {
-    const { data } = await supabase
-      .from("people_view")
-      .select("*")
-      .eq("tree_id", tree.tree_id)
-      .eq("claimed_by", user.id)
-      .maybeSingle();
+    const [{ data }, treeData] = await Promise.all([
+      supabase
+        .from("people_view")
+        .select("*")
+        .eq("tree_id", tree.tree_id)
+        .eq("claimed_by", user.id)
+        .maybeSingle(),
+      loadTreeData(tree),
+    ]);
     claimed = (data as Person | null) ?? null;
+    graph = treeData.graph;
   }
+
+  const canEdit = tree ? canEditRole(tree.role) : false;
+  const isAdmin = tree ? isAdminRole(tree.role) : false;
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-5 px-4 py-6 sm:px-6">
@@ -38,30 +50,6 @@ export default async function ProfilePage() {
 
       <Card title="Ismingiz">
         <ProfileForm initialName={profile?.full_name ?? ""} />
-      </Card>
-
-      <Card
-        title="Shajaradagi oʻrningiz"
-        description="Shajaradagi qaysi yozuv oʻzingiz ekanini belgilashingiz mumkin."
-      >
-        {claimed ? (
-          <div className="flex flex-col gap-2">
-            <Link
-              href={`/person/${claimed.id}`}
-              className="font-display text-lg text-ink hover:text-brand hover:underline"
-            >
-              {personName(claimed)}
-            </Link>
-            <p className="text-sm text-ink-muted">
-              Bu yozuv sizga biriktirilgan — oʻz maʼlumotlaringizni koʻra olasiz.
-            </p>
-          </div>
-        ) : (
-          <p className="text-sm text-ink-muted">
-            Hali hech qaysi yozuv sizga biriktirilmagan. Shajarada oʻzingizni toping
-            va u yerda <strong>&laquo;Bu menman&raquo;</strong> tugmasini bosing.
-          </p>
-        )}
       </Card>
 
       <Card
@@ -97,6 +85,36 @@ export default async function ProfilePage() {
           Ismingiz kiritilmagan — hozircha boshqa aʼzolar sizni
           &laquo;Foydalanuvchi&raquo; deb koʻradi.
         </Notice>
+      )}
+
+      {/* The shajara-side profile — picture, relatives, tarjimai hol and so on —
+          used to live only at /person/[id], so a claimed user effectively had
+          two separate profiles. Folding the same view in here, after the
+          account-level cards above, makes this one page instead of two. */}
+      {claimed && graph ? (
+        <div className="flex flex-col gap-3">
+          <h2 className="font-display text-lg font-semibold text-ink">
+            Shajaradagi profilim
+          </h2>
+          <PersonProfile
+            person={claimed}
+            graph={graph}
+            canEdit={canEdit}
+            currentUserId={user.id}
+            isAdmin={isAdmin}
+            embedded
+          />
+        </div>
+      ) : (
+        <Card
+          title="Shajaradagi oʻrningiz"
+          description="Shajaradagi qaysi yozuv oʻzingiz ekanini belgilashingiz mumkin."
+        >
+          <p className="text-sm text-ink-muted">
+            Hali hech qaysi yozuv sizga biriktirilmagan. Shajarada oʻzingizni toping
+            va u yerda <strong>&laquo;Bu menman&raquo;</strong> tugmasini bosing.
+          </p>
+        </Card>
       )}
 
       <Link href="/tree" className="text-sm text-brand hover:underline">

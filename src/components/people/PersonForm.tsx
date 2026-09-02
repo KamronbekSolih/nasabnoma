@@ -436,14 +436,16 @@ export function PersonForm({
             shajaraning mohiyati shu.
           </p>
           <Field label="Ko'rinishi" htmlFor="visibility">
+            {/* Defaults to open — a new record is visible to the whole tree unless
+                someone deliberately closes it, not the other way round. */}
             <select
               id="visibility"
               name="visibility"
-              defaultValue={person?.visibility ?? "family"}
+              defaultValue={person?.visibility ?? "public"}
               className={inputClass}
             >
-              <option value="family">Yopiq — faqat administrator ko&apos;radi</option>
               <option value="public">Ochiq — shajaradagi hamma ko&apos;radi</option>
+              <option value="family">Yopiq — faqat administrator ko&apos;radi</option>
             </select>
           </Field>
         </section>
