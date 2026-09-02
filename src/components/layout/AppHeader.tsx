@@ -67,6 +67,24 @@ export function AppHeader({
           <SignOutButton />
         </nav>
 
+        {/* Mobile-only quick link to the world map, sitting between the logo
+            and the hamburger toggle — desktop already has it in the nav list
+            above, so this doesn't duplicate there (md:hidden). */}
+        <Link
+          href="/world"
+          aria-label="Dunyo boʻylab"
+          className="flex h-11 w-11 items-center justify-center rounded-lg text-ink-muted hover:bg-paper-sunken md:hidden"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.4" />
+            <path
+              d="M3 10h14M10 3c2.4 2 2.4 12 0 14M10 3c-2.4 2-2.4 12 0 14"
+              stroke="currentColor"
+              strokeWidth="1.2"
+            />
+          </svg>
+        </Link>
+
         {/* Mobile toggle — 44px target, the minimum comfortable tap size */}
         <button
           type="button"
