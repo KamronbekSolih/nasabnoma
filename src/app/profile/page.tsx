@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentTree, canEditRole, isAdminRole } from "@/lib/tree/current";
 import { loadTreeData } from "@/lib/tree/load";
 import { getMyProfile } from "@/lib/profile";
+import { getPersonDocuments } from "@/lib/documents";
 import { ProfileForm } from "@/components/profile/ProfileForm";
 import { LinkedAccounts } from "@/components/profile/LinkedAccounts";
 import { PersonProfile } from "@/components/people/PersonProfile";
@@ -43,6 +44,9 @@ export default async function ProfilePage() {
 
   const canEdit = tree ? canEditRole(tree.role) : false;
   const isAdmin = tree ? isAdminRole(tree.role) : false;
+  // Your own record is always details_visible to you (can_view_details returns
+  // true for claimed_by = auth.uid()), so there's no visibility branch here.
+  const documents = claimed ? await getPersonDocuments(claimed.id) : [];
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-5 px-4 py-6 sm:px-6">
@@ -103,6 +107,7 @@ export default async function ProfilePage() {
             currentUserId={user.id}
             isAdmin={isAdmin}
             embedded
+            documents={documents}
           />
         </div>
       ) : (

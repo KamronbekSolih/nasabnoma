@@ -4,7 +4,9 @@ import { isoToDMY } from "@/lib/dates";
 import { buttonPrimary, Card, Notice } from "@/components/ui/primitives";
 import { StarRosette } from "@/components/ui/Ornament";
 import { ClaimButton } from "./ClaimButton";
+import { DocumentArchive } from "./DocumentArchive";
 import type { FamilyGraph } from "@/lib/tree/relations";
+import type { PersonDocument } from "@/lib/documents";
 import type { Person } from "@/lib/types";
 
 function joinPlace(parts: (string | null)[]): string | null {
@@ -36,6 +38,7 @@ export function PersonProfile({
   currentUserId = null,
   isAdmin = false,
   embedded = false,
+  documents = [],
 }: {
   person: Person;
   graph: FamilyGraph;
@@ -52,6 +55,10 @@ export function PersonProfile({
    * page — the host page already owns the outer width/padding and its own
    * back link, so this drops both instead of nesting them. */
   embedded?: boolean;
+  /** Archive entries, already signed. Empty on the demo trees and for any
+   * viewer who can't see this person's private details — documents follow
+   * exactly the same visibility rule (migration 027). */
+  documents?: PersonDocument[];
 }) {
   const father = graph.fatherOf(person.id);
   const mother = graph.motherOf(person.id);
@@ -201,6 +208,20 @@ export function PersonProfile({
             {person.telegram && <DetailRow label="Telegram" value={person.telegram} />}
             {person.instagram && <DetailRow label="Instagram" value={person.instagram} />}
           </dl>
+        </Card>
+      )}
+
+      {/* Archive. Hidden entirely — not shown empty — from anyone who may not
+          see this person's private details: an empty grid would read as "there
+          are no documents" when the truth is "you can't see them". */}
+      {person.details_visible && (documents.length > 0 || canEdit) && (
+        <Card title="Arxiv" description="Hujjatlar, eski suratlar, qoʻlyozmalar.">
+          <DocumentArchive
+            personId={person.id}
+            treeId={person.tree_id}
+            documents={documents}
+            canEdit={canEdit}
+          />
         </Card>
       )}
 

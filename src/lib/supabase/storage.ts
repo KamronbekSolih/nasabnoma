@@ -1,13 +1,33 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const BUCKET = "avatars";
+const DOCUMENTS_BUCKET = "documents";
 const MAX_DIMENSION = 480;
 const JPEG_QUALITY = 0.82;
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 
+/**
+ * Document renditions. 480px (the avatar default) is fine for a face and
+ * useless for paper — a birth certificate at 480px cannot be read, which is
+ * the whole point of archiving it. 1600px keeps handwriting legible while
+ * landing around 300 kB, so the 1 GB free tier holds thousands of scans
+ * rather than hundreds of raw phone photos.
+ */
+const DOCUMENT_DIMENSION = 1600;
+const DOCUMENT_QUALITY = 0.85;
+/** Grid rendition. Profiles are browsed on phones on mobile data, where
+ * pulling a dozen full scans just to show a grid is the difference between
+ * usable and not. */
+const DOCUMENT_THUMB_DIMENSION = 400;
+const DOCUMENT_THUMB_QUALITY = 0.75;
+
 /** Downscales + re-encodes an image client-side before upload, so a 1GB storage bucket
  * stretches to thousands of photos instead of hundreds. */
-export async function compressImage(file: File): Promise<Blob> {
+export async function compressImage(
+  file: File,
+  maxDimension: number = MAX_DIMENSION,
+  quality: number = JPEG_QUALITY,
+): Promise<Blob> {
   if (file.size > MAX_UPLOAD_BYTES) {
     throw new Error("Rasm juda katta (15 MB dan oshmasin).");
   }
@@ -23,7 +43,7 @@ export async function compressImage(file: File): Promise<Blob> {
     );
   }
 
-  const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
   const width = Math.round(bitmap.width * scale);
   const height = Math.round(bitmap.height * scale);
 
@@ -39,9 +59,63 @@ export async function compressImage(file: File): Promise<Blob> {
     canvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error("Rasmni siqib boʻlmadi."))),
       "image/jpeg",
-      JPEG_QUALITY,
+      quality,
     );
   });
+}
+
+export interface UploadedDocument {
+  storagePath: string;
+  thumbPath: string;
+  sizeBytes: number;
+}
+
+/**
+ * Uploads one archive document as two renditions — a readable full size and a
+ * small grid thumbnail — into the private `documents` bucket.
+ *
+ * Path shape is `{treeId}/{personId}/{uuid}.jpg`, and that is load-bearing:
+ * migration 027's storage INSERT/DELETE policies authorise writes by reading
+ * the tree id out of the first path segment, so changing this layout silently
+ * changes who may write.
+ *
+ * The file lands in storage before any row is recorded. That ordering is
+ * deliberate — an orphaned object costs a little quota, whereas a row pointing
+ * at a file that failed to upload renders as a permanently broken entry.
+ */
+export async function uploadPersonDocument(
+  supabase: SupabaseClient,
+  treeId: string,
+  personId: string,
+  file: File,
+): Promise<UploadedDocument> {
+  const [full, thumb] = await Promise.all([
+    compressImage(file, DOCUMENT_DIMENSION, DOCUMENT_QUALITY),
+    compressImage(file, DOCUMENT_THUMB_DIMENSION, DOCUMENT_THUMB_QUALITY),
+  ]);
+
+  const base = `${treeId}/${personId}/${crypto.randomUUID()}`;
+  const storagePath = `${base}.jpg`;
+  const thumbPath = `${base}_t.jpg`;
+
+  const store = supabase.storage.from(DOCUMENTS_BUCKET);
+  const { error: fullError } = await store.upload(storagePath, full, {
+    contentType: "image/jpeg",
+    upsert: false,
+  });
+  if (fullError) throw new Error(fullError.message);
+
+  const { error: thumbError } = await store.upload(thumbPath, thumb, {
+    contentType: "image/jpeg",
+    upsert: false,
+  });
+  if (thumbError) {
+    // Don't leave the full-size file behind if only the thumbnail failed.
+    await store.remove([storagePath]);
+    throw new Error(thumbError.message);
+  }
+
+  return { storagePath, thumbPath, sizeBytes: full.size + thumb.size };
 }
 
 /** Uploads under the owner's own folder (storage RLS scopes read/write to it), returns the public URL. */
