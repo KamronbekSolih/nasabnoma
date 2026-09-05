@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getCurrentTree } from "@/lib/tree/current";
 import { canEditRole } from "@/lib/roles";
+import { isoToDMY } from "@/lib/dates";
 import { loadTreeData } from "@/lib/tree/load";
 import { PersonForm } from "@/components/people/PersonForm";
 import { personName } from "@/lib/people";
@@ -31,6 +32,8 @@ export default async function EditPersonPage({
   const initialSpouses = graph.spousesOf(id).map(({ person: partner, family }) => ({
     id: partner.id,
     status: family.relation_type,
+    // dd.mm.yyyy for the form; the action converts it back on save.
+    married_date: isoToDMY(family.married_date),
   }));
 
   const initialChildren = graph

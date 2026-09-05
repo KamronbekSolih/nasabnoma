@@ -9,6 +9,15 @@ import type { FamilyGraph } from "@/lib/tree/relations";
 import type { PersonDocument } from "@/lib/documents";
 import type { Person } from "@/lib/types";
 
+const EDUCATION_LABEL: Record<string, string> = {
+  none: "Ma'lumotsiz",
+  primary: "Boshlang'ich",
+  secondary: "O'rta",
+  vocational: "O'rta maxsus / hunar",
+  higher: "Oliy",
+  postgraduate: "Oliy o'quv yurtidan keyingi",
+};
+
 function joinPlace(parts: (string | null)[]): string | null {
   const filled = parts.filter(Boolean);
   return filled.length ? filled.reverse().join(", ") : null;
@@ -201,6 +210,37 @@ export function PersonProfile({
           </dl>
         </Card>
       )}
+
+      {person.details_visible &&
+        (person.education_level ||
+          person.education_place ||
+          person.occupation ||
+          person.languages?.length ||
+          person.countries_visited?.length) && (
+          <Card title="Ta'lim va kasb">
+            <dl className="grid gap-4 sm:grid-cols-2">
+              {person.education_level && (
+                <DetailRow
+                  label="Ma'lumoti"
+                  value={EDUCATION_LABEL[person.education_level] ?? person.education_level}
+                />
+              )}
+              {person.education_place && (
+                <DetailRow label="O'quv yurti" value={person.education_place} />
+              )}
+              {person.occupation && <DetailRow label="Kasbi" value={person.occupation} />}
+              {!!person.languages?.length && (
+                <DetailRow label="Tillari" value={person.languages.join(", ")} />
+              )}
+              {!!person.countries_visited?.length && (
+                <DetailRow
+                  label="Bo'lgan davlatlari"
+                  value={person.countries_visited.join(", ")}
+                />
+              )}
+            </dl>
+          </Card>
+        )}
 
       {person.details_visible && (person.telegram || person.instagram) && (
         <Card title="Aloqa">

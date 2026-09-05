@@ -12,6 +12,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 interface SpouseInput {
   id: string;
   status: string;
+  /** dd.mm.yyyy as typed; absent means "don't touch the existing date". */
+  married_date?: string;
 }
 
 interface ChildInput {
@@ -19,6 +21,21 @@ interface ChildInput {
   family_id?: string | null;
   father_relation?: ChildRelation;
   mother_relation?: ChildRelation;
+}
+
+/** MultiSelect submits its chosen values as a JSON array in a hidden input. */
+function parseStringList(raw: FormDataEntryValue | null): string[] | null {
+  if (!raw || typeof raw !== "string") return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    const values = parsed.filter((v): v is string => typeof v === "string" && !!v.trim());
+    // null rather than [] for an empty list, so "nothing recorded" and "asked
+    // and there are none" aren't stored as the same thing.
+    return values.length > 0 ? values : null;
+  } catch {
+    return null;
+  }
 }
 
 function parseJsonField<T>(raw: FormDataEntryValue | null): T[] {
@@ -117,6 +134,11 @@ export async function savePerson(formData: FormData): Promise<{ id: string } | A
     instagram: (formData.get("instagram") as string)?.trim() || null,
     photo_url: (formData.get("photo_url") as string)?.trim() || null,
     bio: (formData.get("bio") as string)?.trim() || null,
+    education_level: (formData.get("education_level") as string)?.trim() || null,
+    education_place: (formData.get("education_place") as string)?.trim() || null,
+    occupation: (formData.get("occupation") as string)?.trim() || null,
+    countries_visited: parseStringList(formData.get("countries_visited")),
+    languages: parseStringList(formData.get("languages")),
   };
 
   let personId = id;
@@ -147,6 +169,32 @@ export async function savePerson(formData: FormData): Promise<{ id: string } | A
     p_children: parseJsonField<ChildInput>(formData.get("children_json")).filter((c) => c.id),
   });
   if (relError) return { error: relError.message };
+
+  // Marriage dates go straight to `families`, after the RPC above has settled
+  // which family each couple is. Deliberately not threaded through
+  // save_person_relations: its signature is what migration 024's grants and
+  // revokes name, and families_write_editor already lets an editor update the
+  // row directly. A spouse row without the key is left alone; an empty string
+  // clears the date.
+  const spouseRows = parseJsonField<SpouseInput>(formData.get("spouses_json")).filter(
+    (s) => s.id && s.married_date !== undefined,
+  );
+  for (const spouse of spouseRows) {
+    const { data: family } = await supabase
+      .from("families")
+      .select("id")
+      .eq("tree_id", treeId)
+      .or(
+        `and(husband_id.eq.${personId},wife_id.eq.${spouse.id}),and(wife_id.eq.${personId},husband_id.eq.${spouse.id})`,
+      )
+      .maybeSingle();
+    if (family) {
+      await supabase
+        .from("families")
+        .update({ married_date: dmyToISO(spouse.married_date ?? "") })
+        .eq("id", family.id);
+    }
+  }
 
   revalidatePath("/tree");
   revalidatePath(`/person/${personId}`);

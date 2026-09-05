@@ -103,7 +103,6 @@ export function WorldView({
           <div className="relative mx-auto w-full max-w-[560px] p-2 sm:p-4">
             <FamilyGlobe
               distribution={distribution}
-              people={people}
               selectedCountry={selected}
               onSelectCountry={(c) => setSelected((prev) => (prev === c ? null : c))}
             />

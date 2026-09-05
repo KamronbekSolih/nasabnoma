@@ -9,6 +9,7 @@ import { isoToDMY } from "@/lib/dates";
 import { personName } from "@/lib/people";
 import { canEditRole, isAdminRole } from "@/lib/roles";
 import { Combobox } from "@/components/ui/Combobox";
+import { MultiSelect } from "@/components/ui/MultiSelect";
 import {
   buttonPrimary,
   buttonSecondary,
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/primitives";
 import { COUNTRIES } from "@/lib/reference/countries";
 import { UZBEKISTAN, UZBEKISTAN_REGIONS, UZBEKISTAN_REGION_NAMES } from "@/lib/reference/uzbekistan";
+import { LANGUAGES } from "@/lib/reference/languages";
 import { MILLATLAR, UZBEK_MILLAT } from "@/lib/reference/millat";
 import { UZBEK_URUGS, UZBEK_URUG_NAMES } from "@/lib/reference/urug";
 import type {
@@ -30,6 +32,8 @@ import type {
 interface SpouseRow {
   id: string;
   status: FamilyRelationType;
+  /** dd.mm.yyyy as typed. */
+  married_date?: string;
 }
 
 interface ChildRow {
@@ -105,6 +109,10 @@ export function PersonForm({
   const [claimSelf, setClaimSelf] = useState(false);
   const canOfferSelfClaim = !person && !alreadyClaimed;
   const [spouses, setSpouses] = useState<SpouseRow[]>(initialSpouses ?? []);
+  const [countriesVisited, setCountriesVisited] = useState<string[]>(
+    person?.countries_visited ?? [],
+  );
+  const [languages, setLanguages] = useState<string[]>(person?.languages ?? []);
   const [children, setChildren] = useState<ChildRow[]>(initialChildren ?? []);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(person?.photo_url ?? null);
@@ -133,7 +141,7 @@ export function PersonForm({
 
   function addSpouse(id: string) {
     if (!id) return;
-    setSpouses((prev) => [...prev, { id, status: "married" }]);
+    setSpouses((prev) => [...prev, { id, status: "married", married_date: "" }]);
   }
 
   function addChild(id: string) {
@@ -462,6 +470,75 @@ export function PersonForm({
           </Field>
         </section>
 
+        <section className="illuminated flex flex-col gap-4 rounded-card border border-line bg-surface p-4 sm:p-5">
+          <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-ink-muted">
+            Ta&apos;lim va kasb
+          </h2>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Ma'lumoti" htmlFor="education_level">
+              <select
+                id="education_level"
+                name="education_level"
+                defaultValue={person?.education_level ?? ""}
+                className={inputClass}
+              >
+                <option value="">—</option>
+                <option value="none">Ma&apos;lumotsiz</option>
+                <option value="primary">Boshlang&apos;ich</option>
+                <option value="secondary">O&apos;rta</option>
+                <option value="vocational">O&apos;rta maxsus / hunar</option>
+                <option value="higher">Oliy</option>
+                <option value="postgraduate">Oliy o&apos;quv yurtidan keyingi</option>
+              </select>
+            </Field>
+
+            <Field label="O'quv yurti" htmlFor="education_place">
+              <input
+                id="education_place"
+                name="education_place"
+                placeholder="Masalan: TATU, 12-maktab"
+                defaultValue={person?.education_place ?? ""}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+
+          <Field
+            label="Kasbi"
+            htmlFor="occupation"
+            hint="Asosiy yoki eng yuqori lavozimi. To'liq yo'lni tarjimai holda yozing."
+          >
+            <input
+              id="occupation"
+              name="occupation"
+              placeholder="Masalan: o'qituvchi, muhandis, davlat xizmatchisi"
+              defaultValue={person?.occupation ?? ""}
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Biladigan tillari" htmlFor="languages">
+            <MultiSelect
+              name="languages"
+              values={languages}
+              onChange={setLanguages}
+              options={LANGUAGES}
+              placeholder="Til tanlang yoki yozing..."
+            />
+          </Field>
+
+          <Field label="Bo'lgan davlatlari" htmlFor="countries_visited">
+            <MultiSelect
+              name="countries_visited"
+              values={countriesVisited}
+              onChange={setCountriesVisited}
+              options={COUNTRIES}
+              placeholder="Davlat tanlang yoki yozing..."
+            />
+          </Field>
+        </section>
+
         <section className="illuminated flex flex-col gap-3 rounded-card border border-line bg-surface p-4 sm:p-5">
           <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-ink-muted">
             Maxfiylik
@@ -586,8 +663,26 @@ export function PersonForm({
           {spouses.map((s) => {
             const p = people.find((pp) => pp.id === s.id);
             return (
-              <div key={s.id} className="flex items-center gap-3">
-                <span className="flex-1 text-sm text-ink">{p ? personName(p) : s.id}</span>
+              <div key={s.id} className="flex flex-wrap items-center gap-3">
+                <span className="min-w-0 flex-1 text-sm text-ink">
+                  {p ? personName(p) : s.id}
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Nikoh: kk.oo.yyyy"
+                  pattern="\d{2}\.\d{2}\.\d{4}"
+                  title="kk.oo.yyyy formatida kiriting"
+                  value={s.married_date ?? ""}
+                  onChange={(e) =>
+                    setSpouses((prev) =>
+                      prev.map((row) =>
+                        row.id === s.id ? { ...row, married_date: e.target.value } : row,
+                      ),
+                    )
+                  }
+                  className={`${inputClass} w-40`}
+                />
                 <select
                   value={s.status}
                   onChange={(e) =>

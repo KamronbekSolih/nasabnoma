@@ -5,8 +5,6 @@ import dynamic from "next/dynamic";
 import * as THREE from "three";
 import type { GlobeMethods } from "react-globe.gl";
 import { coordsForCountry, isHomeCountry } from "@/lib/reference/coordinates";
-import { personShortName } from "@/lib/people";
-import type { Person } from "@/lib/types";
 
 // three.js is large and touches `window` at import time, so the globe is loaded
 // only in the browser and only when this section is actually opened — it never
@@ -29,11 +27,9 @@ const OCEAN = "#b7c0d1"; // --color-line-strong — a cool blue-grey reads as wa
 // deliberately three genuinely different tones, not tonal variations of one
 // palette that could end up matching each other by accident (that exact mistake
 // broke the World map's Mapbox/MapLibre predecessor twice).
-const INK_MUTED = "#4d5a78"; // --color-ink-muted
 
 /** Longest a marker's name list gets before the rest collapse into a "+N" tail —
  * otherwise a city with a dozen relatives would sprawl across its neighbours. */
-const MAX_NAMES_PER_MARKER = 3;
 
 /** Natural Earth 110m country boundaries — a small (~480KB), public-domain,
  * static file, not a live service call: fetched once from this app's own
@@ -42,55 +38,36 @@ const MAX_NAMES_PER_MARKER = 3;
  * datasets, so the geometry is already known-good for the Polygons layer. */
 const COUNTRIES_URL = "/globe/countries-110m.geojson";
 
+/** Bar height range, as a fraction of the globe's radius. */
+const MIN_BAR = 0.05;
+const MAX_BAR = 0.34;
+
+interface CountryBar {
+  lat: number;
+  lng: number;
+  country: string;
+  count: number;
+  altitude: number;
+}
+
+/** The figure sitting on top of a bar. Just the number: the country name is
+ * already in the sidebar list, and repeating it here crowded the globe as soon
+ * as two countries sat near each other. */
+function buildCountLabel(opts: { count: number; isSelected: boolean }): HTMLDivElement {
+  const el = document.createElement("div");
+  el.className =
+    "cursor-pointer rounded-full px-1.5 py-0.5 font-display text-[11px] leading-none font-semibold";
+  el.textContent = String(opts.count);
+  el.style.color = opts.isSelected ? "#0d2350" : GOLD_BRIGHT;
+  el.style.background = opts.isSelected ? GOLD_BRIGHT : "rgba(13,35,80,0.72)";
+  el.style.border = `1px solid ${GOLD_BRIGHT}`;
+  return el;
+}
+
 interface CountryFeature {
   type: "Feature";
   properties: Record<string, unknown>;
   geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon;
-}
-
-/** One pin's worth of people, all resolved to the same point. */
-interface LocationGroup {
-  lat: number;
-  lng: number;
-  /** Whichever country the point belongs to, for isHome/selection matching —
-   * every person contributing to a group shares a city, so in practice they
-   * share a country too. */
-  country: string;
-  /** Empty for a "someone lives here, but not visible to you" pin — the count
-   * still shown in the sidebar, just no name attached on the map. */
-  names: string[];
-}
-
-function formatNames(names: string[]): string | undefined {
-  if (names.length === 0) return undefined;
-  const shown = names.slice(0, MAX_NAMES_PER_MARKER).join(", ");
-  const rest = names.length - MAX_NAMES_PER_MARKER;
-  return rest > 0 ? `${shown} +${rest}` : shown;
-}
-
-function buildMarkerElement(opts: { isHome: boolean; isSelected: boolean; names?: string }): HTMLDivElement {
-  const el = document.createElement("div");
-  el.className = "flex cursor-pointer flex-col items-center gap-1";
-
-  const dot = document.createElement("span");
-  const size = opts.isHome ? 11 : 8;
-  dot.style.width = `${size}px`;
-  dot.style.height = `${size}px`;
-  dot.style.borderRadius = "9999px";
-  dot.style.background = opts.isSelected || opts.isHome ? GOLD_BRIGHT : GOLD;
-  dot.style.boxShadow = opts.isSelected ? `0 0 0 3px ${GOLD_BRIGHT}55` : "0 1px 2px rgba(27,26,24,0.25)";
-  el.appendChild(dot);
-
-  if (opts.names) {
-    // Plain text, no background chip — just the name sitting on the map.
-    const label = document.createElement("span");
-    label.textContent = opts.names;
-    label.className = "font-body italic whitespace-nowrap text-[11px] leading-tight";
-    label.style.color = opts.isSelected ? GOLD_BRIGHT : INK_MUTED;
-    el.appendChild(label);
-  }
-
-  return el;
 }
 
 function GlobePlaceholder() {
@@ -103,17 +80,14 @@ function GlobePlaceholder() {
 
 export function FamilyGlobe({
   distribution,
-  people,
   onSelectCountry,
   selectedCountry,
 }: {
-  /** Per-country totals, including people the viewer can't see by name — used
-   * only to place an unnamed pin for a country that has family in it but no
-   * one visible to name there. */
+  /** Per-country totals, counting people the viewer cannot see by name as well
+   * — the globe draws one bar per country from this alone, so a country whose
+   * residents are all masked still shows its true size. Naming who is there is
+   * the sidebar's job, and it applies its own visibility rules. */
   distribution: CountryCount[];
-  /** Only people whose current location the viewer is allowed to see — their
-   * names are set beside their own city's pin, not just their country's. */
-  people: Person[];
   onSelectCountry: (country: string | null) => void;
   selectedCountry: string | null;
 }) {
@@ -162,50 +136,40 @@ export function FamilyGlobe({
     [],
   );
 
-  const locationGroups = useMemo(() => {
-    const groups = new Map<string, LocationGroup>();
-    const keyFor = (lat: number, lng: number) => `${lat.toFixed(3)},${lng.toFixed(3)}`;
-
-    for (const p of people) {
-      if (!p.current_country) continue;
-      // A geocoded city point if one was resolved when this person was saved,
-      // else the country's capital — the only precision available before
-      // per-person geocoding existed, and still the fallback when a district
-      // wasn't given or couldn't be resolved.
-      const point =
-        p.current_lat != null && p.current_lng != null
-          ? { lat: p.current_lat, lng: p.current_lng }
-          : coordsForCountry(p.current_country);
-      if (!point) continue;
-
-      const key = keyFor(point.lat, point.lng);
-      let group = groups.get(key);
-      if (!group) {
-        group = { lat: point.lat, lng: point.lng, country: p.current_country, names: [] };
-        groups.set(key, group);
-      }
-      // Ism + familiya only here — the full three-part name (with patronymic)
-      // is what personName() gives everywhere else, but next to a map pin
-      // it's one name too many.
-      group.names.push(personShortName(p));
-    }
-
-    // A country with family in it but nobody the viewer can see by name still
-    // gets a pin — unnamed, at the country's capital — so its presence isn't
-    // silently dropped just because no one in it is nameable here.
-    const countriesAlreadyShown = new Set(people.map((p) => p.current_country).filter((c): c is string => !!c));
+  /**
+   * One bar per country, height scaled by how many relatives live there.
+   *
+   * Deliberately country-level, where the markers this replaces were
+   * city-level. A bar answers "how many of us are here" at a glance, which a
+   * scatter of same-sized city dots never did. Exact cities are still recorded
+   * per person and still shown on their profile — they just are not what this
+   * view is for any more.
+   *
+   * Height is a square root, not linear. Linear against a maximum around 20
+   * would leave a country holding one relative as a bar too short to see or
+   * tap; sqrt keeps the smallest legible while the largest still reads as
+   * clearly the biggest.
+   *
+   * Built from `distribution` rather than from `people`, so a country whose
+   * residents are all privacy-masked still gets its bar and its true count —
+   * the aggregate is visible even when no individual in it is.
+   */
+  const countryBars = useMemo(() => {
+    const max = Math.max(1, ...distribution.map((d) => d.person_count));
+    const bars: CountryBar[] = [];
     for (const row of distribution) {
-      if (countriesAlreadyShown.has(row.country)) continue;
       const point = coordsForCountry(row.country);
       if (!point) continue;
-      const key = keyFor(point.lat, point.lng);
-      if (!groups.has(key)) {
-        groups.set(key, { lat: point.lat, lng: point.lng, country: row.country, names: [] });
-      }
+      bars.push({
+        lat: point.lat,
+        lng: point.lng,
+        country: row.country,
+        count: row.person_count,
+        altitude: MIN_BAR + (MAX_BAR - MIN_BAR) * Math.sqrt(row.person_count / max),
+      });
     }
-
-    return Array.from(groups.values());
-  }, [people, distribution]);
+    return bars;
+  }, [distribution]);
 
   // Rotate slowly on load, and stop once the user takes hold of it.
   useEffect(() => {
@@ -252,24 +216,40 @@ export function FamilyGlobe({
           polygonSideColor={() => LAND}
           polygonStrokeColor={() => GOLD}
           polygonAltitude={0.006}
-          htmlElementsData={locationGroups}
-          htmlLat={(d: object) => (d as LocationGroup).lat}
-          htmlLng={(d: object) => (d as LocationGroup).lng}
-          htmlAltitude={0.01}
+          pointsData={countryBars}
+          pointLat={(d: object) => (d as CountryBar).lat}
+          pointLng={(d: object) => (d as CountryBar).lng}
+          pointAltitude={(d: object) => (d as CountryBar).altitude}
+          pointRadius={0.6}
+          pointResolution={16}
+          pointColor={(d: object) => {
+            const bar = d as CountryBar;
+            if (bar.country === selectedCountry) return GOLD_BRIGHT;
+            return isHomeCountry(bar.country) ? GOLD_BRIGHT : GOLD;
+          }}
+          onPointClick={(d: object) => {
+            const bar = d as CountryBar;
+            onSelectCountry(selectedCountry === bar.country ? null : bar.country);
+          }}
+          // The count rides above its own bar. A hover tooltip would be no use
+          // here: this is read on phones, where there is no hover, and the
+          // number is the whole point of drawing the bar.
+          htmlElementsData={countryBars}
+          htmlLat={(d: object) => (d as CountryBar).lat}
+          htmlLng={(d: object) => (d as CountryBar).lng}
+          htmlAltitude={(d: object) => (d as CountryBar).altitude + 0.03}
           htmlElement={(d: object) => {
-            const group = d as LocationGroup;
-            const el = buildMarkerElement({
-              isHome: isHomeCountry(group.country),
-              isSelected: group.country === selectedCountry,
-              names: formatNames(group.names),
+            const bar = d as CountryBar;
+            const el = buildCountLabel({
+              count: bar.count,
+              isSelected: bar.country === selectedCountry,
             });
-            // htmlElement only ever builds the node; react-globe.gl doesn't
-            // attach any behaviour of its own, so the click handler is bound
-            // here, once, at creation time — same country toggle-select as
-            // the sidebar list.
+            // react-globe.gl attaches no behaviour of its own to an html
+            // element, so the same toggle-select the bar has is bound here too
+            // — the label is the easier tap target of the two.
             el.addEventListener("click", (e) => {
               e.stopPropagation();
-              onSelectCountry(selectedCountry === group.country ? null : group.country);
+              onSelectCountry(selectedCountry === bar.country ? null : bar.country);
             });
             return el;
           }}

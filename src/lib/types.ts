@@ -2,6 +2,15 @@ export type Gender = "male" | "female";
 export type RelationKind = "father" | "mother" | "spouse" | "child";
 export type TreeRole = "owner" | "admin" | "member" | "viewer";
 export type Visibility = "family" | "public";
+/** Ordinal on purpose — kept constrained in the database so it stays countable
+ * and comparable across generations, unlike the free-text fields beside it. */
+export type EducationLevel =
+  | "none"
+  | "primary"
+  | "secondary"
+  | "vocational"
+  | "higher"
+  | "postgraduate";
 
 /** GEDCOM-style: a family is a couple (either slot may be empty) plus their children. */
 export type FamilyRelationType = "married" | "divorced" | "widowed" | "partners" | "unknown";
@@ -67,6 +76,11 @@ export interface Person {
   instagram: string | null;
   photo_url: string | null;
   bio: string | null;
+  education_level: EducationLevel | null;
+  education_place: string | null;
+  occupation: string | null;
+  countries_visited: string[] | null;
+  languages: string[] | null;
   created_at: string;
   updated_at: string;
 }
