@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import ReactFamilyTree from "react-family-tree";
 import type { ExtNode } from "relatives-tree/lib/types";
 import Link from "next/link";
-import { buildTreeNodes } from "@/lib/tree/buildTree";
+import { buildTreeNodes, pruneToLineage } from "@/lib/tree/buildTree";
 import { pickDefaultRootId } from "@/lib/tree/connectivity";
 import { FamilyGraph } from "@/lib/tree/relations";
 import { FamilyNode } from "./FamilyNode";
@@ -57,7 +57,7 @@ export function FamilyTreeView({
     () => new FamilyGraph(people, families, familyChildren),
     [people, families, familyChildren],
   );
-  const nodes = useMemo(() => buildTreeNodes(graph), [graph]);
+  const allNodes = useMemo(() => buildTreeNodes(graph), [graph]);
   const defaultRootId = useMemo(() => pickDefaultRootId(graph), [graph]);
   const unlinkedPeople = useMemo(() => graph.unlinkedPeople(), [graph]);
 
@@ -76,6 +76,10 @@ export function FamilyTreeView({
   // events so mouse, pen and touch all take the same path.
   const scrollRef = useRef<HTMLDivElement>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
+  // Set once a press has travelled far enough to count as a drag, so releasing
+  // over a card pans instead of also opening that person's panel.
+  const draggedRef = useRef(false);
+  const [grabbing, setGrabbing] = useState(false);
   const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
   const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
 
@@ -95,6 +99,11 @@ export function FamilyTreeView({
     const el = scrollRef.current;
     if (el && pointers.current.size === 1) {
       panRef.current = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
+      draggedRef.current = false;
+      setGrabbing(true);
+      // Capturing means the drag keeps following the cursor past the edge of
+      // the canvas and still ends cleanly if the button comes up outside it.
+      el.setPointerCapture?.(e.pointerId);
     }
   }
 
@@ -113,18 +122,42 @@ export function FamilyTreeView({
 
     const el = scrollRef.current;
     if (el && panRef.current) {
-      el.scrollLeft = panRef.current.left - (e.clientX - panRef.current.x);
-      el.scrollTop = panRef.current.top - (e.clientY - panRef.current.y);
+      const dx = e.clientX - panRef.current.x;
+      const dy = e.clientY - panRef.current.y;
+      // A few pixels of travel while tapping a card is normal; past that it is
+      // a pan, and the click that follows should be swallowed.
+      if (Math.hypot(dx, dy) > 5) draggedRef.current = true;
+      el.scrollLeft = panRef.current.left - dx;
+      el.scrollTop = panRef.current.top - dy;
     }
   }
 
   function endPointer(e: React.PointerEvent) {
     pointers.current.delete(e.pointerId);
+    scrollRef.current?.releasePointerCapture?.(e.pointerId);
     if (pointers.current.size < 2) pinchRef.current = null;
-    if (pointers.current.size === 0) panRef.current = null;
+    if (pointers.current.size === 0) {
+      panRef.current = null;
+      setGrabbing(false);
+    }
+  }
+
+  /** Runs before the card's own handler, so a pan never also selects someone. */
+  function swallowClickAfterDrag(e: React.MouseEvent) {
+    if (!draggedRef.current) return;
+    draggedRef.current = false;
+    e.preventDefault();
+    e.stopPropagation();
   }
 
   const effectiveRootId = rootId && graph.personById.has(rootId) ? rootId : defaultRootId;
+  // Descendants in full, ancestry as a single line. Centring on the default
+  // root (the topmost ancestor) keeps everyone, so the opening view is
+  // unchanged — this only narrows things once you centre on someone mid-tree.
+  const nodes = useMemo(
+    () => pruneToLineage(allNodes, effectiveRootId),
+    [allNodes, effectiveRootId],
+  );
   const selectedPerson = selectedId ? graph.personById.get(selectedId) : undefined;
   const canEdit = canEditRole(role);
 
@@ -222,11 +255,15 @@ export function FamilyTreeView({
           onPointerMove={handlePointerMove}
           onPointerUp={endPointer}
           onPointerCancel={endPointer}
-          onPointerLeave={endPointer}
+          onClickCapture={swallowClickAfterDrag}
           // touch-action:none hands every gesture to the handlers above, so a
           // pinch is not stolen by the browser and a drag never chains out to
           // scroll the page behind the canvas. Taps still fire normally.
-          className="absolute inset-0 touch-none overflow-auto overscroll-contain p-6"
+          // No onPointerLeave: the pointer is captured on press, so leaving the
+          // box mid-drag should keep panning rather than drop the grab.
+          className={`absolute inset-0 touch-none overflow-auto overscroll-contain p-6 ${
+            grabbing ? "cursor-grabbing" : "cursor-grab"
+          }`}
         >
           {/* CSS transform scales the whole canvas without touching the layout math
               inside ReactFamilyTree/FamilyNode (still WIDTH×HEIGHT per node) — the
@@ -258,7 +295,12 @@ export function FamilyTreeView({
           </div>
         </div>
 
-        <div className="pointer-events-none absolute right-4 bottom-4 z-10 sm:right-6">
+        <div className="pointer-events-none absolute right-4 bottom-4 z-10 flex items-center gap-2 sm:right-6">
+          <div className="pointer-events-auto rounded-lg border border-line-strong bg-surface/95 px-2.5 py-1.5 shadow-lg backdrop-blur">
+            <span className="text-sm whitespace-nowrap text-ink-muted">
+              <span className="font-medium text-ink">{people.length}</span> kishi
+            </span>
+          </div>
           <div className="pointer-events-auto flex items-center gap-0.5 rounded-lg border border-line-strong bg-surface/95 p-1 shadow-lg backdrop-blur">
             <button
               type="button"

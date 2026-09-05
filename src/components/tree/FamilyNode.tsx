@@ -1,5 +1,4 @@
 import type { ExtNode } from "relatives-tree/lib/types";
-import { personName } from "@/lib/people";
 import type { Person } from "@/lib/types";
 
 const WIDTH = 180;
@@ -80,10 +79,14 @@ export function FamilyNode({
           }`}
           aria-hidden="true"
         />
+        {/* Given name only. On a card sitting under its own father, the
+            patronymic and family name repeat what the edge already says, and
+            they crowded out the years and country. The full name is still on
+            the side panel and the profile page. */}
         <span
           className={`truncate pl-1.5 font-display leading-snug text-ink ${marriedIn ? "text-xs" : "text-sm"}`}
         >
-          {personName(person)}
+          {person.first_name}
         </span>
         {years && <span className="pl-1.5 text-xs text-ink-muted">{years}</span>}
         {location && (

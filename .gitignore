@@ -44,3 +44,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Personal family archive kept alongside the repo — scans and video, not app source.
+# These belong in the app's document archive, not in git (one is 204 MB, over GitHub's 100 MB limit).
+Bekmirza domla/
