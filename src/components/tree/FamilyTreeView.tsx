@@ -101,9 +101,11 @@ export function FamilyTreeView({
       panRef.current = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
       draggedRef.current = false;
       setGrabbing(true);
-      // Capturing means the drag keeps following the cursor past the edge of
-      // the canvas and still ends cleanly if the button comes up outside it.
-      el.setPointerCapture?.(e.pointerId);
+      // Deliberately NOT capturing the pointer here. Capture retargets pointerup
+      // to this container, so a tap that began on a card no longer has a common
+      // target for down and up and the browser never dispatches click on it —
+      // which silently broke opening a person from the tree. Capture is taken
+      // in handlePointerMove instead, once the press is actually a drag.
     }
   }
 
@@ -126,7 +128,12 @@ export function FamilyTreeView({
       const dy = e.clientY - panRef.current.y;
       // A few pixels of travel while tapping a card is normal; past that it is
       // a pan, and the click that follows should be swallowed.
-      if (Math.hypot(dx, dy) > 5) draggedRef.current = true;
+      if (!draggedRef.current && Math.hypot(dx, dy) > 5) {
+        draggedRef.current = true;
+        // Now that this is unambiguously a drag and not a tap, capture so it
+        // keeps tracking past the canvas edge and ends cleanly outside it.
+        el.setPointerCapture?.(e.pointerId);
+      }
       el.scrollLeft = panRef.current.left - dx;
       el.scrollTop = panRef.current.top - dy;
     }
