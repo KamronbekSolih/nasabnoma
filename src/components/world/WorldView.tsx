@@ -8,6 +8,29 @@ import { personName } from "@/lib/people";
 import { coordsForCountry, isHomeCountry } from "@/lib/reference/coordinates";
 import type { Person } from "@/lib/types";
 
+/** Lifespan as it should read on a card, or "" when the viewer may not see it.
+ * Living people's dates come back null for ordinary members, so this stays
+ * empty rather than printing a misleading "?". */
+function lifespan(person: Person): string {
+  if (!person.details_visible) return "";
+  const birth = person.birth_date
+    ? person.birth_date.slice(0, 4)
+    : (person.birth_date_approx ?? "");
+  const death = person.is_deceased
+    ? person.death_date
+      ? person.death_date.slice(0, 4)
+      : "?"
+    : null;
+  if (!birth && !death) return "";
+  return death ? `${birth || "?"} – ${death}` : birth;
+}
+
+/** The most specific place we have below country level — the country is
+ * already the heading above these rows, so repeating it here wastes the line. */
+function cityOf(person: Person): string {
+  return person.current_district || person.current_region || "";
+}
+
 export function WorldView({
   distribution,
   people,
@@ -88,6 +111,75 @@ export function WorldView({
         </div>
 
         <aside className="flex flex-col gap-3">
+          {/* Selected first: tapping a pin should land on the answer, not on a
+              list you then have to scroll past to reach it. */}
+          {selectedRow && (
+            <div className="illuminated rounded-card border border-line-strong bg-surface p-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="font-display text-base text-ink">{selectedRow.country}</h3>
+                <span className="shrink-0 text-sm text-ink-muted">
+                  {selectedRow.person_count} qarindosh
+                </span>
+              </div>
+
+              {namedInSelected.length > 0 && (
+                <ul className="mt-3 flex flex-col gap-2">
+                  {namedInSelected.map((person) => {
+                    const years = lifespan(person);
+                    const city = cityOf(person);
+                    const meta = [city, years].filter(Boolean).join(" · ");
+                    return (
+                      <li key={person.id}>
+                        <Link
+                          href={`/person/${person.id}`}
+                          className="flex items-center gap-2.5 rounded-card p-1 transition-colors hover:bg-brand-soft"
+                        >
+                          {person.photo_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={person.photo_url}
+                              alt=""
+                              className="h-9 w-9 shrink-0 rounded-full border border-gold-line object-cover"
+                            />
+                          ) : (
+                            <span
+                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${
+                                person.gender === "female"
+                                  ? "border-female/30 bg-female-soft text-female"
+                                  : "border-male/30 bg-male-soft text-male"
+                              }`}
+                              aria-hidden="true"
+                            >
+                              <span className="font-display text-sm">
+                                {person.first_name.charAt(0)}
+                              </span>
+                            </span>
+                          )}
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm text-ink">
+                              {personName(person)}
+                            </span>
+                            {meta && (
+                              <span className="block truncate text-xs text-ink-muted">{meta}</span>
+                            )}
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {namedInSelected.length < selectedRow.person_count && (
+                <p className="mt-3 text-xs text-ink-faint">
+                  {namedInSelected.length === 0
+                    ? "Tirik qarindoshlarning manzili yopiq — bu yerda faqat umumiy soni koʻrsatiladi."
+                    : `Yana ${selectedRow.person_count - namedInSelected.length} kishining manzili yopiq.`}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="rounded-card border border-line bg-transparent p-4">
             <h2 className="font-display text-sm font-semibold tracking-wide text-ink-muted uppercase">
               Davlatlar
@@ -134,37 +226,6 @@ export function WorldView({
             </ul>
           </div>
 
-          {selectedRow && (
-            <div className="rounded-card border border-line bg-transparent p-4">
-              <h3 className="font-display text-base text-ink">{selectedRow.country}</h3>
-              <p className="mt-0.5 text-sm text-ink-muted">
-                {selectedRow.person_count} qarindosh
-              </p>
-
-              {namedInSelected.length > 0 && (
-                <ul className="mt-3 flex flex-col gap-1">
-                  {namedInSelected.map((p) => (
-                    <li key={p.id}>
-                      <Link
-                        href={`/person/${p.id}`}
-                        className="text-sm text-ink hover:text-brand hover:underline"
-                      >
-                        {personName(p)}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {namedInSelected.length < selectedRow.person_count && (
-                <p className="mt-3 text-xs text-ink-faint">
-                  {namedInSelected.length === 0
-                    ? "Tirik qarindoshlarning manzili yopiq — bu yerda faqat umumiy soni koʻrsatiladi."
-                    : `Yana ${selectedRow.person_count - namedInSelected.length} kishining manzili yopiq.`}
-                </p>
-              )}
-            </div>
-          )}
         </aside>
       </div>
     </div>
